@@ -1,0 +1,453 @@
+import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Eye,
+  EyeOff,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  PiggyBank,
+  Receipt,
+  HandCoins,
+} from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { formatVND } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { EditTransactionModal, TransactionToEdit } from "@/components/EditTransactionModal";
+
+export const Route = createFileRoute("/_authenticated/")({
+  component: DashboardPage,
+});
+
+type Tx = {
+  id: string;
+  wallet_id: string;
+  category_id: string | null;
+  kind: "expense" | "income" | "debt" | "savings";
+  amount: number;
+  note: string | null;
+  occurred_at: string;
+};
+
+function useDashboardData() {
+  const wallets = useQuery({
+    queryKey: ["wallets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wallets")
+        .select("*")
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const txs = useQuery({
+    queryKey: ["transactions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as Tx[];
+    },
+  });
+  const cats = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id,name,kind,icon,color");
+      if (error) throw error;
+      return data;
+    },
+  });
+  return { wallets, txs, cats };
+}
+
+function DashboardPage() {
+  const { wallets, txs, cats } = useDashboardData();
+  const [hidden, setHidden] = useState(false);
+  const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
+
+  const walletBalances = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const w of wallets.data ?? []) {
+      map.set(w.id, Number(w.initial_balance));
+    }
+    for (const t of txs.data ?? []) {
+      const cur = map.get(t.wallet_id) ?? 0;
+      const sign =
+        t.kind === "income" ? 1 : t.kind === "expense" ? -1 : 0; // debt/savings: neutral on cash
+      map.set(t.wallet_id, cur + sign * Number(t.amount));
+    }
+    return map;
+  }, [wallets.data, txs.data]);
+
+  const total = useMemo(
+    () => Array.from(walletBalances.values()).reduce((a, b) => a + b, 0),
+    [walletBalances],
+  );
+
+  const now = new Date();
+  const monthKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const thisMonth = monthKey(now);
+
+  const monthStats = useMemo(() => {
+    let inc = 0,
+      exp = 0,
+      debt = 0,
+      sav = 0;
+    for (const t of txs.data ?? []) {
+      if (monthKey(new Date(t.occurred_at)) !== thisMonth) continue;
+      const amt = Number(t.amount);
+      if (t.kind === "income") inc += amt;
+      else if (t.kind === "expense") exp += amt;
+      else if (t.kind === "debt") debt += amt;
+      else sav += amt;
+    }
+    return { inc, exp, debt, sav };
+  }, [txs.data, thisMonth]);
+
+  const chartData = useMemo(() => {
+    const months: { key: string; label: string; expense: number; income: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        key: monthKey(d),
+        label: `T${d.getMonth() + 1}`,
+        expense: 0,
+        income: 0,
+      });
+    }
+    const idx = new Map(months.map((m, i) => [m.key, i]));
+    for (const t of txs.data ?? []) {
+      const k = monthKey(new Date(t.occurred_at));
+      const i = idx.get(k);
+      if (i === undefined) continue;
+      if (t.kind === "expense") months[i].expense += Number(t.amount);
+      else if (t.kind === "income") months[i].income += Number(t.amount);
+    }
+    return months;
+  }, [txs.data]);
+
+  const topCategories = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of txs.data ?? []) {
+      if (t.kind !== "expense") continue;
+      if (monthKey(new Date(t.occurred_at)) !== thisMonth) continue;
+      if (!t.category_id) continue;
+      map.set(t.category_id, (map.get(t.category_id) ?? 0) + Number(t.amount));
+    }
+    const catMap = new Map((cats.data ?? []).map((c) => [c.id, c]));
+    return Array.from(map.entries())
+      .map(([id, amt]) => ({ cat: catMap.get(id), amount: amt }))
+      .filter((x) => x.cat)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+  }, [txs.data, cats.data, thisMonth]);
+
+  const noSpendDays = useMemo(() => {
+    const today = new Date();
+    let count = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dayKey = d.toISOString().slice(0, 10);
+      const has = (txs.data ?? []).some(
+        (t) =>
+          t.kind === "expense" && t.occurred_at.slice(0, 10) === dayKey,
+      );
+      if (!has) count++;
+    }
+    return count;
+  }, [txs.data]);
+
+  const recent = (txs.data ?? []).slice(0, 8);
+
+  const mask = (v: string) => (hidden ? "••••••" : v);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">Tổng tài sản</p>
+          <div className="mt-1 flex items-center gap-3">
+            <h1 className="font-display text-4xl font-semibold tracking-tight lg:text-5xl">
+              {mask(formatVND(total))}
+            </h1>
+            <button
+              onClick={() => setHidden((h) => !h)}
+              className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              aria-label="Ẩn/hiện số dư"
+            >
+              {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bento grid */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label="Thu tháng này"
+          value={mask(formatVND(monthStats.inc))}
+          icon={<ArrowDownRight className="h-4 w-4" />}
+          tone="success"
+        />
+        <StatCard
+          label="Chi tháng này"
+          value={mask(formatVND(monthStats.exp))}
+          icon={<ArrowUpRight className="h-4 w-4" />}
+          tone="destructive"
+        />
+        <StatCard
+          label="Nợ"
+          value={mask(formatVND(monthStats.debt))}
+          icon={<HandCoins className="h-4 w-4" />}
+          tone="warning"
+        />
+        <StatCard
+          label="Tiết kiệm"
+          value={mask(formatVND(monthStats.sav))}
+          icon={<PiggyBank className="h-4 w-4" />}
+          tone="primary"
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {/* Chart */}
+        <div className="rounded-2xl border border-border bg-[image:var(--gradient-card)] p-5 shadow-[var(--shadow-soft)] lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="font-display text-base font-semibold">
+                Chi tiêu 6 tháng gần nhất
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Quan sát xu hướng theo tháng
+              </p>
+            </div>
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="label"
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) =>
+                    v >= 1_000_000
+                      ? `${(v / 1_000_000).toFixed(1)}tr`
+                      : v >= 1000
+                        ? `${v / 1000}k`
+                        : `${v}`
+                  }
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 12,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => formatVND(v)}
+                />
+                <Bar dataKey="income" fill="var(--color-success)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="expense" fill="var(--color-primary)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Insights */}
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <TrendingUp className="h-4 w-4" />
+              Ngày không chi tiêu
+            </div>
+            <p className="mt-2 font-display text-3xl font-semibold">
+              {noSpendDays}
+              <span className="ml-1 text-sm font-normal text-muted-foreground">
+                / 30 ngày
+              </span>
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <Receipt className="h-4 w-4" /> Top chi tiêu tháng này
+            </div>
+            {topCategories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Chưa có dữ liệu</p>
+            ) : (
+              <ul className="space-y-2">
+                {topCategories.map(({ cat, amount }) => (
+                  <li key={cat!.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 truncate">
+                      <span>{cat!.icon}</span>
+                      <span className="truncate">{cat!.name}</span>
+                    </span>
+                    <span className="font-display font-semibold">
+                      {mask(formatVND(amount))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Wallets */}
+      <div>
+        <h3 className="mb-3 font-display text-base font-semibold">Ví của bạn</h3>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {(wallets.data ?? []).map((w) => (
+            <div
+              key={w.id}
+              className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]"
+            >
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{w.icon ?? "💼"}</span>
+                <span className="truncate">{w.name}</span>
+              </div>
+              <p className="mt-2 font-display text-xl font-semibold">
+                {mask(formatVND(walletBalances.get(w.id) ?? 0))}
+              </p>
+            </div>
+          ))}
+          {(wallets.data ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Chưa có ví — vào tab Ví để tạo.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Recent */}
+      <div>
+        <h3 className="mb-3 font-display text-base font-semibold">
+          Giao dịch gần đây
+        </h3>
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+          {recent.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              <Wallet className="mx-auto mb-2 h-6 w-6 opacity-40" />
+              Chưa có giao dịch. Bấm nút <strong>+</strong> để thêm nhanh.
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {recent.map((t) => {
+                const cat = (cats.data ?? []).find((c) => c.id === t.category_id);
+                const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
+                const sign =
+                  t.kind === "income"
+                    ? "+"
+                    : t.kind === "expense"
+                      ? "-"
+                      : "";
+                return (
+                  <li
+                    key={t.id}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent/50"
+                    onClick={() => setEditingTx(t)}
+                  >
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
+                      {cat?.icon ?? "💸"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {t.note || cat?.name || "Giao dịch"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {w?.name} •{" "}
+                        {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                      </p>
+                    </div>
+                    <div
+                      className={cn(
+                        "font-display text-sm font-semibold",
+                        t.kind === "income" && "text-success",
+                        t.kind === "expense" && "text-destructive",
+                      )}
+                    >
+                      {sign}
+                      {mask(formatVND(Number(t.amount)))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <EditTransactionModal
+        transaction={editingTx}
+        open={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        wallets={wallets.data ?? []}
+        categories={cats.data ?? []}
+      />
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  tone: "success" | "destructive" | "warning" | "primary";
+}) {
+  const toneClass = {
+    success: "bg-success/10 text-success",
+    destructive: "bg-destructive/10 text-destructive",
+    warning: "bg-warning/15 text-warning-foreground",
+    primary: "bg-primary/10 text-primary",
+  }[tone];
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className={cn("grid h-7 w-7 place-items-center rounded-lg", toneClass)}>
+          {icon}
+        </span>
+      </div>
+      <p className="mt-2 font-display text-lg font-semibold lg:text-xl">{value}</p>
+    </div>
+  );
+}
