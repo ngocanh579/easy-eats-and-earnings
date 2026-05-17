@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Sparkles className="h-5 w-5" />
           </div>
           <span className="font-display text-lg font-semibold tracking-tight">
-            Xu
+            Chi Tiêu
           </span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1">
@@ -94,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-[image:var(--gradient-primary)] text-primary-foreground">
             <Sparkles className="h-4 w-4" />
           </div>
-          <span className="font-display text-base font-semibold">Xu</span>
+          <span className="font-display text-base font-semibold">Chi Tiêu</span>
         </Link>
         <button
           onClick={toggle}

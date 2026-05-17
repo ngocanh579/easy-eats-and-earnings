@@ -18,7 +18,7 @@ function removeLovableTagger(): Plugin {
         config.plugins = config.plugins.filter((p: unknown) => {
           if (!p || typeof p !== "object") return true;
           const plugin = p as Plugin;
-          return plugin.name !== "lovable-tagger";
+          return plugin.name !== "lovable-plugin";
         });
       }
     },
