@@ -82,9 +82,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1c3a6e11-cfa1-45a4-9617-9195bbc30c9f/id-preview-67071518--7b75493b-0188-42df-90c6-ffe988d876f9.lovable.app-1778874814341.png" },
         { name: "twitter:card", content: "summary_large_image" },
         { property: "og:type", content: "website" },
+        { name: "theme-color", content: "#7c3aed" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+        { name: "apple-mobile-web-app-title", content: "Chi Tiêu" },
       ],
       links: [
         { rel: "stylesheet", href: appCss },
+        { rel: "manifest", href: "/manifest.json" },
+        { rel: "apple-touch-icon", href: "/icon-192.png" },
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         {
           rel: "preconnect",
