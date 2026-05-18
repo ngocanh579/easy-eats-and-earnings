@@ -27,6 +27,29 @@ function BudgetsPage() {
   const [period, setPeriod] = useState<"1" | "3" | "6" | "12">("1");
   const [viewingBudget, setViewingBudget] = useState<any>(null);
 
+  const parsedPreview = useMemo(() => {
+    const hasLetters = /[a-zA-Z]/g.test(amount);
+    if (!hasLetters) return null;
+    const parsed = parseAmountShortcut(amount);
+    if (parsed !== null && parsed > 0) {
+      return formatVND(parsed);
+    }
+    return null;
+  }, [amount]);
+
+  const handleAmountBlur = () => {
+    const parsed = parseAmountShortcut(amount);
+    if (parsed !== null && parsed > 0) {
+      setAmount(parsed.toLocaleString("vi-VN"));
+    } else {
+      const clean = amount.replace(/[^0-9]/g, "");
+      if (clean) {
+        const num = parseFloat(clean);
+        setAmount(num.toLocaleString("vi-VN"));
+      }
+    }
+  };
+
   const cats = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
@@ -225,12 +248,20 @@ function BudgetsPage() {
                 </option>
               ))}
             </select>
-            <input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Số tiền tối đa (VD: 2tr)"
-              className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
-            />
+            <div className="relative mt-3">
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onBlur={handleAmountBlur}
+                placeholder="Số tiền tối đa (VD: 2tr, 500k...)"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
+              />
+              {parsedPreview && (
+                <span className="text-[10px] text-success font-semibold mt-1 block animate-pulse">
+                  = {parsedPreview}
+                </span>
+              )}
+            </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {PERIODS.map((p) => (
                 <button

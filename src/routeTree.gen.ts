@@ -14,6 +14,8 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
 import { Route as AuthenticatedTransactionsRouteImport } from './routes/_authenticated/transactions'
+import { Route as AuthenticatedSmartPlanRouteImport } from './routes/_authenticated/smart-plan'
+import { Route as AuthenticatedShoppingAssistantRouteImport } from './routes/_authenticated/shopping-assistant'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
 import { Route as AuthenticatedBudgetsRouteImport } from './routes/_authenticated/budgets'
 
@@ -42,6 +44,17 @@ const AuthenticatedTransactionsRoute =
     path: '/transactions',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSmartPlanRoute = AuthenticatedSmartPlanRouteImport.update({
+  id: '/smart-plan',
+  path: '/smart-plan',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedShoppingAssistantRoute =
+  AuthenticatedShoppingAssistantRouteImport.update({
+    id: '/shopping-assistant',
+    path: '/shopping-assistant',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -58,6 +71,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/budgets': typeof AuthenticatedBudgetsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
+  '/shopping-assistant': typeof AuthenticatedShoppingAssistantRoute
+  '/smart-plan': typeof AuthenticatedSmartPlanRoute
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/wallets': typeof AuthenticatedWalletsRoute
 }
@@ -65,6 +80,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/budgets': typeof AuthenticatedBudgetsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
+  '/shopping-assistant': typeof AuthenticatedShoppingAssistantRoute
+  '/smart-plan': typeof AuthenticatedSmartPlanRoute
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/wallets': typeof AuthenticatedWalletsRoute
   '/': typeof AuthenticatedIndexRoute
@@ -75,6 +92,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authenticated/budgets': typeof AuthenticatedBudgetsRoute
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
+  '/_authenticated/shopping-assistant': typeof AuthenticatedShoppingAssistantRoute
+  '/_authenticated/smart-plan': typeof AuthenticatedSmartPlanRoute
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
   '/_authenticated/wallets': typeof AuthenticatedWalletsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -86,16 +105,28 @@ export interface FileRouteTypes {
     | '/login'
     | '/budgets'
     | '/categories'
+    | '/shopping-assistant'
+    | '/smart-plan'
     | '/transactions'
     | '/wallets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/budgets' | '/categories' | '/transactions' | '/wallets' | '/'
+  to:
+    | '/login'
+    | '/budgets'
+    | '/categories'
+    | '/shopping-assistant'
+    | '/smart-plan'
+    | '/transactions'
+    | '/wallets'
+    | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
     | '/_authenticated/budgets'
     | '/_authenticated/categories'
+    | '/_authenticated/shopping-assistant'
+    | '/_authenticated/smart-plan'
     | '/_authenticated/transactions'
     | '/_authenticated/wallets'
     | '/_authenticated/'
@@ -143,6 +174,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTransactionsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/smart-plan': {
+      id: '/_authenticated/smart-plan'
+      path: '/smart-plan'
+      fullPath: '/smart-plan'
+      preLoaderRoute: typeof AuthenticatedSmartPlanRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/shopping-assistant': {
+      id: '/_authenticated/shopping-assistant'
+      path: '/shopping-assistant'
+      fullPath: '/shopping-assistant'
+      preLoaderRoute: typeof AuthenticatedShoppingAssistantRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/categories': {
       id: '/_authenticated/categories'
       path: '/categories'
@@ -163,6 +208,8 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedBudgetsRoute: typeof AuthenticatedBudgetsRoute
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
+  AuthenticatedShoppingAssistantRoute: typeof AuthenticatedShoppingAssistantRoute
+  AuthenticatedSmartPlanRoute: typeof AuthenticatedSmartPlanRoute
   AuthenticatedTransactionsRoute: typeof AuthenticatedTransactionsRoute
   AuthenticatedWalletsRoute: typeof AuthenticatedWalletsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -171,6 +218,8 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBudgetsRoute: AuthenticatedBudgetsRoute,
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
+  AuthenticatedShoppingAssistantRoute: AuthenticatedShoppingAssistantRoute,
+  AuthenticatedSmartPlanRoute: AuthenticatedSmartPlanRoute,
   AuthenticatedTransactionsRoute: AuthenticatedTransactionsRoute,
   AuthenticatedWalletsRoute: AuthenticatedWalletsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,

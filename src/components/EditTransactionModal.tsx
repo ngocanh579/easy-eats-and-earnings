@@ -4,6 +4,7 @@ import { X, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatVND, parseAmountShortcut } from "@/lib/format";
 
 type Kind = "expense" | "income" | "debt" | "savings";
 
@@ -61,12 +62,35 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
     }
   }, [transaction, open]);
 
+  const parsedPreview = React.useMemo(() => {
+    const hasLetters = /[a-zA-Z]/g.test(amountStr);
+    if (!hasLetters) return null;
+    const parsed = parseAmountShortcut(amountStr);
+    if (parsed !== null && parsed > 0) {
+      return formatVND(parsed);
+    }
+    return null;
+  }, [amountStr]);
+
+  const handleAmountBlur = () => {
+    const parsed = parseAmountShortcut(amountStr);
+    if (parsed !== null && parsed > 0) {
+      setAmountStr(parsed.toString());
+    } else {
+      const clean = amountStr.replace(/[^0-9]/g, "");
+      if (clean) {
+        const num = parseFloat(clean);
+        setAmountStr(num.toString());
+      }
+    }
+  };
+
   const filteredCats = categories.filter((c) => c.kind === kind);
 
   const update = useMutation({
     mutationFn: async () => {
       if (!transaction) throw new Error("Không có giao dịch để sửa.");
-      const amount = Number(amountStr);
+      const amount = parseAmountShortcut(amountStr) || Number(amountStr.replace(/[^0-9]/g, ""));
       if (isNaN(amount) || amount <= 0) throw new Error("Số tiền không hợp lệ.");
       if (!walletId) throw new Error("Vui lòng chọn ví.");
       if (!occurredAt) throw new Error("Vui lòng chọn thời gian.");
@@ -125,12 +149,18 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
             <label className="mb-1 block text-sm font-medium text-muted-foreground">Số tiền</label>
             <input
               autoFocus
-              type="number"
+              type="text"
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
-              placeholder="Nhập số tiền..."
+              onBlur={handleAmountBlur}
+              placeholder="Nhập số tiền (VD: 200k, 1.5tr)..."
               className="w-full rounded-xl border border-input bg-background px-4 py-3 font-display text-lg outline-none ring-ring placeholder:text-muted-foreground/60 focus:ring-2"
             />
+            {parsedPreview && (
+              <span className="text-[10px] text-success font-semibold mt-1 block animate-pulse">
+                = {parsedPreview}
+              </span>
+            )}
           </div>
 
           <div>

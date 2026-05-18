@@ -9,6 +9,7 @@ import {
   Sun,
   LogOut,
   Sparkles,
+  ShoppingBag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/lib/theme";
@@ -20,6 +21,8 @@ const NAV = [
   { to: "/wallets", label: "Ví", icon: Wallet },
   { to: "/categories", label: "Danh mục", icon: Tags },
   { to: "/budgets", label: "Ngân sách", icon: Target },
+  { to: "/smart-plan", label: "Kế hoạch", icon: Sparkles },
+  { to: "/shopping-assistant", label: "Trợ lý mua sắm", icon: ShoppingBag },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {

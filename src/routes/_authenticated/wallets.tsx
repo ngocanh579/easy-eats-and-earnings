@@ -26,6 +26,29 @@ function WalletsPage() {
   const [type, setType] = useState<(typeof TYPES)[number]["v"]>("cash");
   const [balance, setBalance] = useState("");
 
+  const parsedPreview = useMemo(() => {
+    const hasLetters = /[a-zA-Z]/g.test(balance);
+    if (!hasLetters) return null;
+    const parsed = parseAmountShortcut(balance);
+    if (parsed !== null && parsed > 0) {
+      return formatVND(parsed);
+    }
+    return null;
+  }, [balance]);
+
+  const handleAmountBlur = () => {
+    const parsed = parseAmountShortcut(balance);
+    if (parsed !== null && parsed > 0) {
+      setBalance(parsed.toLocaleString("vi-VN"));
+    } else {
+      const clean = balance.replace(/[^0-9]/g, "");
+      if (clean) {
+        const num = parseFloat(clean);
+        setBalance(num.toLocaleString("vi-VN"));
+      }
+    }
+  };
+
   const wallets = useQuery({
     queryKey: ["wallets"],
     queryFn: async () => {
@@ -186,12 +209,20 @@ function WalletsPage() {
                 </button>
               ))}
             </div>
-            <input
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
-              placeholder="Số dư ban đầu (VD: 500k)"
-              className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
-            />
+            <div className="relative mt-3">
+              <input
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                onBlur={handleAmountBlur}
+                placeholder="Số dư ban đầu (VD: 500k, 10tr...)"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
+              />
+              {parsedPreview && (
+                <span className="text-[10px] text-success font-semibold mt-1 block animate-pulse">
+                  = {parsedPreview}
+                </span>
+              )}
+            </div>
             <button
               onClick={() => create.mutate()}
               disabled={create.isPending}
