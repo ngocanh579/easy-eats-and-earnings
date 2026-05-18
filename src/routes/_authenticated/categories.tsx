@@ -360,7 +360,7 @@ function CategoriesPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
               {catTxs.length === 0 ? (
                 <p className="text-center py-8 text-sm text-muted-foreground">
                   Chưa có giao dịch nào thuộc danh mục này.
