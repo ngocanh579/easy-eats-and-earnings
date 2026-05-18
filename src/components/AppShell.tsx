@@ -96,17 +96,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <span className="font-display text-base font-semibold">Chi Tiêu</span>
         </Link>
-        <button
-          onClick={toggle}
-          className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          aria-label="Toggle theme"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-4 w-4" />
-          ) : (
-            <Moon className="h-4 w-4" />
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggle}
+            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              nav({ to: "/login" });
+            }}
+            className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            aria-label="Đăng xuất"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
       {/* Main */}

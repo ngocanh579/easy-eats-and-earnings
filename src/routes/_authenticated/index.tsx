@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -12,6 +12,9 @@ import {
   PiggyBank,
   Receipt,
   HandCoins,
+  X,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   Bar,
@@ -26,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { EditTransactionModal, TransactionToEdit } from "@/components/EditTransactionModal";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: DashboardPage,
@@ -82,6 +86,22 @@ function DashboardPage() {
   const { wallets, txs, cats } = useDashboardData();
   const [hidden, setHidden] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
+  const [selectedKindForView, setSelectedKindForView] = useState<"income" | "expense" | "debt" | "savings" | null>(null);
+
+  const qc = useQueryClient();
+  const del = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("transactions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["wallets-balance"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Đã xoá giao dịch");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const walletBalances = useMemo(() => {
     const map = new Map<string, number>();
@@ -209,24 +229,28 @@ function DashboardPage() {
           value={mask(formatVND(monthStats.inc))}
           icon={<ArrowDownRight className="h-4 w-4" />}
           tone="success"
+          onClick={() => setSelectedKindForView("income")}
         />
         <StatCard
           label="Chi tháng này"
           value={mask(formatVND(monthStats.exp))}
           icon={<ArrowUpRight className="h-4 w-4" />}
           tone="destructive"
+          onClick={() => setSelectedKindForView("expense")}
         />
         <StatCard
           label="Nợ"
           value={mask(formatVND(monthStats.debt))}
           icon={<HandCoins className="h-4 w-4" />}
           tone="warning"
+          onClick={() => setSelectedKindForView("debt")}
         />
         <StatCard
           label="Tiết kiệm"
           value={mask(formatVND(monthStats.sav))}
           icon={<PiggyBank className="h-4 w-4" />}
           tone="primary"
+          onClick={() => setSelectedKindForView("savings")}
         />
       </div>
 
@@ -411,6 +435,112 @@ function DashboardPage() {
         </div>
       </div>
 
+      {selectedKindForView && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={() => setSelectedKindForView(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-t-3xl bg-card p-5 shadow-[var(--shadow-soft)] sm:rounded-3xl max-h-[85vh] flex flex-col"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+                {selectedKindForView === "debt" && (
+                  <>
+                    <HandCoins className="h-5 w-5 text-warning" />
+                    <span>Lịch sử giao dịch Nợ</span>
+                  </>
+                )}
+                {selectedKindForView === "savings" && (
+                  <>
+                    <PiggyBank className="h-5 w-5 text-primary" />
+                    <span>Lịch sử giao dịch Tiết kiệm</span>
+                  </>
+                )}
+                {selectedKindForView === "income" && (
+                  <>
+                    <ArrowDownRight className="h-5 w-5 text-success" />
+                    <span>Lịch sử giao dịch Thu nhập</span>
+                  </>
+                )}
+                {selectedKindForView === "expense" && (
+                  <>
+                    <ArrowUpRight className="h-5 w-5 text-destructive" />
+                    <span>Lịch sử giao dịch Chi tiêu</span>
+                  </>
+                )}
+              </h3>
+              <button
+                onClick={() => setSelectedKindForView(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {(txs.data ?? []).filter((t) => t.kind === selectedKindForView).length === 0 ? (
+                <p className="text-center py-8 text-sm text-muted-foreground">
+                  Chưa có giao dịch nào thuộc loại này.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {(txs.data ?? [])
+                    .filter((t) => t.kind === selectedKindForView)
+                    .map((t) => {
+                      const cat = (cats.data ?? []).find((c) => c.id === t.category_id);
+                      const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
+                      return (
+                        <li
+                          key={t.id}
+                          className="flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2"
+                        >
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
+                            {cat?.icon ?? "🏷️"}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {t.note || cat?.name || "Giao dịch"}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {w?.name} •{" "}
+                              {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                            </p>
+                          </div>
+                          <div className="font-display text-sm font-semibold text-foreground mr-2">
+                            {formatVND(Number(t.amount))}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setEditingTx(t as TransactionToEdit)}
+                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                              aria-label="Sửa giao dịch"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
+                                  del.mutate(t.id);
+                                }
+                              }}
+                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              aria-label="Xoá giao dịch"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <EditTransactionModal
         transaction={editingTx}
         open={!!editingTx}
@@ -427,11 +557,13 @@ function StatCard({
   value,
   icon,
   tone,
+  onClick,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   tone: "success" | "destructive" | "warning" | "primary";
+  onClick?: () => void;
 }) {
   const toneClass = {
     success: "bg-success/10 text-success",
@@ -440,7 +572,13 @@ function StatCard({
     primary: "bg-primary/10 text-primary",
   }[tone];
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
+    <div
+      onClick={onClick}
+      className={cn(
+        "rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] transition-all duration-200",
+        onClick && "cursor-pointer hover:scale-[1.02] hover:border-primary/40 hover:shadow-[var(--shadow-glow)] active:scale-[0.98]"
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
         <span className={cn("grid h-7 w-7 place-items-center rounded-lg", toneClass)}>

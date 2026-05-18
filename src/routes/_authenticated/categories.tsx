@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EditTransactionModal, TransactionToEdit } from "@/components/EditTransactionModal";
+import { formatVND } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/categories")({
   component: CategoriesPage,
@@ -33,6 +35,8 @@ function CategoriesPage() {
   const [open, setOpen] = useState<{ type: "add", parent_id: string | null } | { type: "edit", category: any } | null>(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🍜");
+  const [selectedCat, setSelectedCat] = useState<any | null>(null);
+  const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
 
   const cats = useQuery({
     queryKey: ["categories"],
@@ -44,6 +48,54 @@ function CategoriesPage() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const txs = useQuery({
+    queryKey: ["transactions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("occurred_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const wallets = useQuery({
+    queryKey: ["wallets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wallets")
+        .select("*")
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const catTxs = useMemo(() => {
+    if (!selectedCat || !txs.data) return [];
+    const catIds = [selectedCat.id];
+    if (!selectedCat.parent_id) {
+      const children = (cats.data ?? []).filter((c) => c.parent_id === selectedCat.id);
+      catIds.push(...children.map((c) => c.id));
+    }
+    return txs.data.filter((t) => catIds.includes(t.category_id));
+  }, [selectedCat, txs.data, cats.data]);
+
+  const delTx = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("transactions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["wallets-balance"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Đã xoá giao dịch");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const grouped = useMemo(() => {
@@ -153,7 +205,13 @@ function CategoriesPage() {
             <li key={p.id} className="p-4">
               <div className="flex items-center gap-3">
                 <span className="text-xl">{p.icon ?? "🏷️"}</span>
-                <span className="flex-1 font-medium">{p.name}</span>
+                <span
+                  onClick={() => setSelectedCat(p)}
+                  className="flex-1 font-medium cursor-pointer hover:underline hover:text-primary transition-all"
+                  title="Bấm để xem danh sách giao dịch"
+                >
+                  {p.name}
+                </span>
                 <button
                   onClick={() => {
                     setName(p.name);
@@ -190,7 +248,13 @@ function CategoriesPage() {
                   {p.children.map((c) => (
                     <li key={c.id} className="flex items-center gap-3 text-sm text-muted-foreground">
                       <span>{c.icon ?? "•"}</span>
-                      <span className="flex-1">{c.name}</span>
+                      <span
+                        onClick={() => setSelectedCat(c)}
+                        className="flex-1 cursor-pointer hover:underline hover:text-primary transition-all"
+                        title="Bấm để xem danh sách giao dịch"
+                      >
+                        {c.name}
+                      </span>
                       <div className="flex gap-1">
                         <button
                           onClick={() => {
@@ -274,6 +338,94 @@ function CategoriesPage() {
           </div>
         </div>
       )}
+    {selectedCat && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={() => setSelectedCat(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-t-3xl bg-card p-5 shadow-[var(--shadow-soft)] sm:rounded-3xl max-h-[85vh] flex flex-col"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+                <span className="text-xl">{selectedCat.icon ?? "🏷️"}</span>
+                <span>Giao dịch của "{selectedCat.name}"</span>
+              </h3>
+              <button
+                onClick={() => setSelectedCat(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {catTxs.length === 0 ? (
+                <p className="text-center py-8 text-sm text-muted-foreground">
+                  Chưa có giao dịch nào thuộc danh mục này.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {catTxs.map((t) => {
+                    const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
+                    return (
+                      <li
+                        key={t.id}
+                        className="flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2"
+                      >
+                        <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
+                          {selectedCat.icon ?? "🏷️"}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {t.note || selectedCat.name || "Giao dịch"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {w?.name} •{" "}
+                            {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                          </p>
+                        </div>
+                        <div className="font-display text-sm font-semibold text-foreground mr-2">
+                          {formatVND(Number(t.amount))}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingTx(t as TransactionToEdit)}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            aria-label="Sửa giao dịch"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
+                                delTx.mutate(t.id);
+                              }
+                            }}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Xoá giao dịch"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <EditTransactionModal
+        transaction={editingTx}
+        open={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        wallets={wallets.data ?? []}
+        categories={cats.data ?? []}
+      />
     </div>
   );
 }
