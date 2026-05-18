@@ -419,13 +419,37 @@ function DashboardPage() {
                     </div>
                     <div
                       className={cn(
-                        "font-display text-sm font-semibold",
+                        "font-display text-sm font-semibold mr-1",
                         t.kind === "income" && "text-success",
                         t.kind === "expense" && "text-destructive",
                       )}
                     >
                       {sign}
                       {mask(formatVND(Number(t.amount)))}
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingTx(t);
+                        }}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        aria-label="Sửa giao dịch"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
+                            del.mutate(t.id);
+                          }
+                        }}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        aria-label="Xoá giao dịch"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </li>
                 );

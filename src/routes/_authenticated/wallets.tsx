@@ -138,7 +138,7 @@ function WalletsPage() {
                 if (confirm(`Xoá ví "${w.name}"? Mọi giao dịch của ví cũng sẽ bị xoá.`))
                   del.mutate(w.id);
               }}
-              className="absolute right-3 top-3 rounded-lg p-2 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+              className="absolute right-3 top-3 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" />
             </button>
