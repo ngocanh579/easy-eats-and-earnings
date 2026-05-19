@@ -375,7 +375,7 @@ function ShoppingAssistantPage() {
     if (demoMode) {
       return 5000000;
     }
-    return dbWallets.reduce((sum, w) => sum + Number(w.balance), 0) || 5000000;
+    return dbWallets.reduce((sum, w) => sum + Number(w.initial_balance), 0) || 5000000;
   }, [dbWallets, demoMode]);
 
   // ----------------------------------------------------
