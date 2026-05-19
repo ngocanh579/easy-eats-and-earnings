@@ -62,7 +62,7 @@ interface UnpaidOrder {
 interface Wallet {
   id: string;
   name: string;
-  balance: number;
+  initial_balance: number;
 }
 
 interface Category {
@@ -375,7 +375,7 @@ function ShoppingAssistantPage() {
     if (demoMode) {
       return 5000000;
     }
-    return dbWallets.reduce((sum, w) => sum + Number(w.balance), 0) || 5000000;
+    return dbWallets.reduce((sum, w) => sum + Number(w.initial_balance), 0) || 5000000;
   }, [dbWallets, demoMode]);
 
   // ----------------------------------------------------
@@ -383,8 +383,12 @@ function ShoppingAssistantPage() {
   // ----------------------------------------------------
   const payOrderMutation = useMutation({
     mutationFn: async ({ order, walletId, categoryId }: { order: UnpaidOrder; walletId: string; categoryId: string }) => {
-      // 1. Create real transaction entry
-      const { data: txData, error: txError } = await supabase.from("transactions").insert({
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Chưa đăng nhập");
+      // Insert a transaction row only — RLS scopes to the user and wallet balances
+      // are derived from transactions, so no client-side balance write is needed.
+      const { error: txError } = await supabase.from("transactions").insert({
+        user_id: u.user.id,
         wallet_id: walletId,
         category_id: categoryId,
         kind: "expense",
@@ -393,23 +397,6 @@ function ShoppingAssistantPage() {
         occurred_at: new Date().toISOString(),
       });
       if (txError) throw txError;
-
-      // 2. Query current wallet balance
-      const { data: walletData, error: wFetchError } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("id", walletId)
-        .single();
-      if (wFetchError) throw wFetchError;
-
-      // 3. Subtract balance
-      const currentBal = walletData?.balance || 0;
-      const newBal = currentBal - order.price;
-      const { error: wUpdateError } = await supabase
-        .from("wallets")
-        .update({ balance: newBal })
-        .eq("id", walletId);
-      if (wUpdateError) throw wUpdateError;
 
       return { walletId, amount: order.price };
     },
@@ -1623,7 +1610,7 @@ function ShoppingAssistantPage() {
                   >
                     {dbWallets.map((w) => (
                       <option key={w.id} value={w.id}>
-                        💳 {w.name} (Số dư: {formatVND(w.balance)})
+                        💳 {w.name}
                       </option>
                     ))}
                   </select>

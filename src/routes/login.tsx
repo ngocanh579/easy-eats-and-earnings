@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/errors";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
@@ -40,8 +41,7 @@ function LoginPage() {
         nav({ to: "/" });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Có lỗi xảy ra";
-      toast.error(msg);
+      toast.error(friendlyError(err));
     } finally {
       setLoading(false);
     }
