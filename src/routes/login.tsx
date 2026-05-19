@@ -41,8 +41,7 @@ function LoginPage() {
         nav({ to: "/" });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Có lỗi xảy ra";
-      toast.error(msg);
+      toast.error(friendlyError(err));
     } finally {
       setLoading(false);
     }
