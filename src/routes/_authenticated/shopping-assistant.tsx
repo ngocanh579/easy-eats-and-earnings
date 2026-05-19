@@ -1610,7 +1610,7 @@ function ShoppingAssistantPage() {
                   >
                     {dbWallets.map((w) => (
                       <option key={w.id} value={w.id}>
-                        💳 {w.name} (Số dư: {formatVND(w.balance)})
+                        💳 {w.name}
                       </option>
                     ))}
                   </select>
