@@ -214,6 +214,15 @@
   }
 }
 
+@layer utilities {
+  .truncate-2-lines {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
 @layer base {
   :root {
     --background: oklch(0.985 0.004 248);
