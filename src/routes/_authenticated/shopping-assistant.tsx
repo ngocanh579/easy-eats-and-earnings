@@ -62,7 +62,7 @@ interface UnpaidOrder {
 interface Wallet {
   id: string;
   name: string;
-  balance: number;
+  initial_balance: number;
 }
 
 interface Category {
