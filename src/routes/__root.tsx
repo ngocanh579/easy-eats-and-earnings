@@ -46,7 +46,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <h1 className="font-display text-xl font-semibold">
           Đã có lỗi xảy ra
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <p className="mt-2 text-sm text-muted-foreground">Đã có lỗi xảy ra. Vui lòng thử lại.</p>
         <button
           onClick={() => {
             router.invalidate();
