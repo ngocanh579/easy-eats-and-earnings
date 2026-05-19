@@ -57,8 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isActive = (to: string) =>
     to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to);
 
-  // On mobile: sidebar is overlay (full open or hidden). On desktop: persistent rail.
-  const sidebarVisible = isMobile ? mobileOpen : true;
+  // On mobile the drawer is always fully expanded when open; on desktop honor the toggle.
   const sidebarExpanded = isMobile ? true : desktopExpanded;
 
   return (
