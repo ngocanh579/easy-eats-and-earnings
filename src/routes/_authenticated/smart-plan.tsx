@@ -251,6 +251,7 @@ function SmartPlanPage() {
     let needsTotal = 0;
     let wantsTotal = 0;
     let savingsTotal = 0;
+    let unclassifiedTotal = 0;
 
     for (const t of realTxs) {
       // Only process transactions of current month
@@ -282,11 +283,15 @@ function SmartPlanPage() {
         continue;
       }
 
-      // Find category details for expenses/debts
+      if (t.kind !== "expense") {
+        continue;
+      }
+
+      // Find category details for expenses
       const cat = realCats.find((c) => c.id === t.category_id);
       if (!cat) {
         // Fallback: uncategorized expenses go to wants
-        wantsTotal += amt;
+        unclassifiedTotal += amt;
         details["Chi phí Khác"] += amt;
         continue;
       }
@@ -306,7 +311,7 @@ function SmartPlanPage() {
         else if (lowerName.includes("đi") || lowerName.includes("xăng") || lowerName.includes("grab") || lowerName.includes("bus") || lowerName.includes("traffic")) details["Đi lại"] += amt;
         else details["Hoá đơn"] += amt;
       } else if (wantsRegex.test(lowerName)) {
-        wantsTotal += amt;
+        unclassifiedTotal += amt;
         if (lowerName.includes("cafe") || lowerName.includes("cà phê") || lowerName.includes("coffee")) details["Cafe"] += amt;
         else if (lowerName.includes("sắm") || lowerName.includes("đồ") || lowerName.includes("quần") || lowerName.includes("shopping")) details["Mua sắm"] += amt;
         else if (lowerName.includes("trí") || lowerName.includes("phim") || lowerName.includes("game") || lowerName.includes("spotify")) details["Giải trí"] += amt;
@@ -328,6 +333,7 @@ function SmartPlanPage() {
       needsTotal,
       wantsTotal,
       savingsTotal,
+      unclassifiedTotal,
       details,
     };
   }, [realTxs, realCats, currentMonthKey]);
@@ -340,7 +346,7 @@ function SmartPlanPage() {
       if (demoMode) {
         return 22000000; // Demo actual total income is exactly 22.000.000đ
       }
-      return classifiedRealData.actualIncome || 0;
+      return classifiedRealData.actualIncome || parseFloat(incomeInput) || 22000000;
     }
     return parseFloat(incomeInput) || 22000000;
   }, [demoMode, incomeSource, incomeInput, classifiedRealData.actualIncome]);
@@ -377,6 +383,7 @@ function SmartPlanPage() {
         needsTotal,
         wantsTotal,
         savingsTotal,
+        unclassifiedTotal: 0,
         details,
       };
     }
@@ -385,6 +392,7 @@ function SmartPlanPage() {
       needsTotal: classifiedRealData.needsTotal,
       wantsTotal: classifiedRealData.wantsTotal,
       savingsTotal: classifiedRealData.savingsTotal,
+      unclassifiedTotal: classifiedRealData.unclassifiedTotal,
       details: classifiedRealData.details,
     };
   }, [demoMode, classifiedRealData]);
@@ -568,15 +576,15 @@ function SmartPlanPage() {
   }, [activeData, activeIncome]);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-5 animate-fade-in pb-8 sm:space-y-6">
       {/* Header section with Premium design */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-4">
+      <div className="flex flex-col gap-4 rounded-[1.75rem] bg-card/80 p-4 shadow-[var(--shadow-soft)] sm:p-5 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-[image:var(--gradient-primary)] text-primary-foreground shadow-[var(--shadow-glow)]">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-glow)]">
               <Sparkles className="h-4.5 w-4.5 animate-pulse" />
             </div>
-            <h1 className="font-display text-2xl font-semibold lg:text-3xl">
+            <h1 className="font-display text-xl font-semibold sm:text-2xl lg:text-3xl">
               Kế hoạch chi tiêu 50/30/20
             </h1>
           </div>
@@ -586,11 +594,11 @@ function SmartPlanPage() {
         </div>
 
         {/* Demo switches */}
-        <div className="flex flex-wrap items-center gap-3 bg-muted/40 p-1.5 rounded-xl border border-border/60 self-start md:self-center">
+        <div className="flex w-full flex-wrap items-center gap-3 rounded-2xl bg-muted/60 p-1.5 self-start md:w-auto md:self-center">
           <button
             onClick={handleDemoModeToggle}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+              "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 md:flex-none",
               demoMode
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -604,7 +612,7 @@ function SmartPlanPage() {
 
       {/* Control panel for Income Input */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="lg:col-span-2 rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
           <div>
             <h3 className="font-display text-base font-semibold flex items-center gap-2">
               <DollarSign className="h-4.5 w-4.5 text-primary" />
@@ -620,11 +628,12 @@ function SmartPlanPage() {
             <div 
               onClick={() => {
                 setIncomeSource("actual");
-                saveSettings(incomeInput, "actual", demoMode);
+                setDemoMode(false);
+                saveSettings(incomeInput, "actual", false);
                 toast.success("Đã áp dụng Thu nhập Thực tế vào phân bổ 50/30/20!");
               }}
               className={cn(
-                "rounded-2xl border p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group select-none hover:scale-[1.015]",
+                "rounded-[1.35rem] border p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group select-none active:scale-[0.99] sm:hover:scale-[1.015]",
                 incomeSource === "actual" 
                   ? "border-success bg-success/5 ring-1 ring-success/20" 
                   : "border-border/60 bg-muted/20 hover:border-success/40"
@@ -682,7 +691,7 @@ function SmartPlanPage() {
                 }
               }}
               className={cn(
-                "rounded-2xl border p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group select-none hover:scale-[1.015]",
+                "rounded-[1.35rem] border p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group select-none active:scale-[0.99] sm:hover:scale-[1.015]",
                 incomeSource === "custom" 
                   ? "border-primary bg-primary/5 ring-1 ring-primary/20" 
                   : "border-border/60 bg-muted/20 hover:border-primary/40"
@@ -712,7 +721,7 @@ function SmartPlanPage() {
                       value={inputValue}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onBlur={handleInputBlur}
-                      className="w-full rounded-lg border border-input bg-background pl-2.5 pr-8 py-1.5 outline-none focus:ring-1 focus:ring-ring font-display font-bold text-sm"
+                      className="min-h-11 w-full rounded-xl border border-input bg-background pl-3 pr-10 py-2 outline-none focus:ring-2 focus:ring-ring/30 font-display font-bold text-sm"
                       placeholder="Ví dụ: 15tr, 33k..."
                     />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">
@@ -743,7 +752,7 @@ function SmartPlanPage() {
         </div>
 
         {/* Highlight Stats Card */}
-        <div className="rounded-2xl border border-border bg-[image:var(--gradient-card)] p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between text-card-foreground">
+        <div className="rounded-[1.5rem] bg-[image:var(--gradient-card)] p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between text-card-foreground">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs text-muted-foreground font-medium">Chi tiêu an toàn còn lại</p>
@@ -774,9 +783,9 @@ function SmartPlanPage() {
       </div>
 
       {/* Bento Grid Row 2: Charts and Suggestions */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3">
         {/* Recharts Pie Chart comparing Target vs Actual */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] lg:col-span-2">
+        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 lg:col-span-2">
           <h3 className="font-display text-base font-semibold flex items-center gap-2">
             <Calendar className="h-4.5 w-4.5 text-primary" />
             Cơ cấu ngân sách 50/30/20
@@ -785,9 +794,9 @@ function SmartPlanPage() {
             So sánh tỷ lệ phân bổ Mục tiêu đề xuất với Chi tiêu Thực tế của bạn trong tháng này.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 h-60">
+          <div className="mt-5 grid min-h-[30rem] grid-cols-1 gap-5 sm:min-h-[18rem] md:grid-cols-2">
             {/* Target Pie Chart */}
-            <div className="flex flex-col items-center justify-center relative">
+            <div className="relative flex min-h-56 flex-col items-center justify-center rounded-2xl bg-muted/30 p-3">
               <span className="absolute top-2 text-xs font-semibold text-muted-foreground bg-muted/65 px-2 py-0.5 rounded-full">
                 MỤC TIÊU PHÂN BỔ
               </span>
@@ -817,7 +826,7 @@ function SmartPlanPage() {
             </div>
 
             {/* Actual Pie Chart */}
-            <div className="flex flex-col items-center justify-center relative">
+            <div className="relative flex min-h-56 flex-col items-center justify-center rounded-2xl bg-muted/30 p-3">
               <span className="absolute top-2 text-xs font-semibold text-muted-foreground bg-muted/65 px-2 py-0.5 rounded-full">
                 CHI TIÊU THỰC TẾ
               </span>
@@ -853,7 +862,7 @@ function SmartPlanPage() {
         </div>
 
         {/* Smart Suggestions Panel */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="rounded-[1.5rem] bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
           <div>
             <h3 className="font-display text-base font-semibold flex items-center gap-2">
               <Sparkles className="h-4.5 w-4.5 text-warning" />
@@ -885,8 +894,8 @@ function SmartPlanPage() {
       </div>
 
       {/* Forecasting Alerts Panel (Dự đoán và cảnh báo) */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-        <div className="flex items-center justify-between border-b border-border pb-3">
+      <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="font-display text-base font-semibold flex items-center gap-2">
               <TrendingUp className="h-4.5 w-4.5 text-destructive" />
@@ -938,7 +947,7 @@ function SmartPlanPage() {
 
       {/* Main Groups Details Dashboard */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 className="font-display text-base font-semibold">Phân tích chi tiết 3 nhóm chi tiêu</h3>
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground font-medium">Đang liên kết nguồn:</span>
@@ -953,9 +962,15 @@ function SmartPlanPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        {!demoMode && activeData.unclassifiedTotal > 0 && (
+          <div className="rounded-2xl bg-warning/10 px-4 py-3 text-xs font-medium text-warning-foreground">
+            {formatVND(activeData.unclassifiedTotal)} chưa được đưa vào 3 nhóm vì giao dịch chưa có danh mục rõ ràng hoặc không thuộc chi tiêu thường xuyên.
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-3 lg:gap-6">
           {/* NEEDS CARD */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+          <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-3">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
@@ -1031,7 +1046,7 @@ function SmartPlanPage() {
           </div>
 
           {/* WANTS CARD */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+          <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-3">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/10 text-warning-foreground text-xs font-semibold">
@@ -1107,7 +1122,7 @@ function SmartPlanPage() {
           </div>
 
           {/* SAVINGS CARD */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+          <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-3">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-semibold">
@@ -1174,7 +1189,7 @@ function SmartPlanPage() {
       </div>
 
       {/* Personalized Next Month Recommendations */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+      <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5">
         <h3 className="font-display text-base font-semibold flex items-center gap-2">
           <Compass className="h-4.5 w-4.5 text-primary" />
           Đề xuất ngân sách tháng sau tự động
@@ -1185,7 +1200,7 @@ function SmartPlanPage() {
 
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           {/* Rec 1 */}
-          <div className="rounded-xl border border-border p-4 bg-muted/20">
+          <div className="rounded-2xl p-4 bg-muted/45">
             <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Nhu cầu thiết yếu</span>
             <div className="flex items-baseline gap-1.5 mt-1">
               <span className="font-display text-xl font-bold text-primary">{nextMonthRecommendation.needs.pct}%</span>
@@ -1197,7 +1212,7 @@ function SmartPlanPage() {
           </div>
 
           {/* Rec 2 */}
-          <div className="rounded-xl border border-border p-4 bg-muted/20">
+          <div className="rounded-2xl p-4 bg-muted/45">
             <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Mong muốn cá nhân</span>
             <div className="flex items-baseline gap-1.5 mt-1">
               <span className="font-display text-xl font-bold text-warning-foreground">{nextMonthRecommendation.wants.pct}%</span>
@@ -1209,7 +1224,7 @@ function SmartPlanPage() {
           </div>
 
           {/* Rec 3 */}
-          <div className="rounded-xl border border-border p-4 bg-muted/20">
+          <div className="rounded-2xl p-4 bg-muted/45">
             <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Tiết kiệm tích lũy</span>
             <div className="flex items-baseline gap-1.5 mt-1">
               <span className="font-display text-xl font-bold text-success">{nextMonthRecommendation.savings.pct}%</span>

@@ -148,6 +148,24 @@ const DEFAULT_ORDERS: UnpaidOrder[] = [
   },
 ];
 
+const parseMoneyInput = (value: string) => {
+  const parsed = parseAmountShortcut(value);
+  if (parsed !== null) return parsed;
+  return Number(value.replace(/[^0-9]/g, "")) || 0;
+};
+
+const normalizeSavedOrder = (order: UnpaidOrder): UnpaidOrder => {
+  const price = Number(order.price);
+
+  // Older builds parsed formatted values like "4.000" as 4. COD prices below
+  // 1,000 VND are not practical in this app, so migrate them back to thousands.
+  if (price > 0 && price < 1000) {
+    return { ...order, price: price * 1000 };
+  }
+
+  return { ...order, price };
+};
+
 function ShoppingAssistantPage() {
   const queryClient = useQueryClient();
 
@@ -263,7 +281,9 @@ function ShoppingAssistantPage() {
     }
 
     if (savedOrders) {
-      setOrders(JSON.parse(savedOrders));
+      const normalizedOrders = (JSON.parse(savedOrders) as UnpaidOrder[]).map(normalizeSavedOrder);
+      setOrders(normalizedOrders);
+      localStorage.setItem("easy_eats_pending_orders", JSON.stringify(normalizedOrders));
     } else {
       setOrders(DEFAULT_ORDERS);
       localStorage.setItem("easy_eats_pending_orders", JSON.stringify(DEFAULT_ORDERS));
@@ -491,7 +511,15 @@ function ShoppingAssistantPage() {
       warnings.push("Số dư dự trữ trong ví còn quá thấp.");
     }
 
-    return { label, labelName, colorClass, reason, warnings };
+    const impactScore = Math.min(
+      100,
+      Math.max(
+        6,
+        Math.round(walletRatio * 100 + (item.rating <= 2 ? 18 : 0) + (recentSimilarCount >= 3 ? 20 : 0))
+      )
+    );
+
+    return { label, labelName, colorClass, reason, warnings, impactScore };
   };
 
   // ----------------------------------------------------
@@ -587,7 +615,7 @@ function ShoppingAssistantPage() {
       return;
     }
 
-    const priceNum = parseAmountShortcut(newPurchase.price) || parseFloat(newPurchase.price.replace(/[^0-9]/g, "")) || 0;
+    const priceNum = parseMoneyInput(newPurchase.price);
     if (priceNum <= 0) {
       toast.error("Giá tiền phải lớn hơn 0!");
       return;
@@ -630,7 +658,7 @@ function ShoppingAssistantPage() {
       return;
     }
 
-    const priceNum = parseAmountShortcut(newOrder.price) || parseFloat(newOrder.price.replace(/[^0-9]/g, "")) || 0;
+    const priceNum = parseMoneyInput(newOrder.price);
     if (priceNum <= 0) {
       toast.error("Giá tiền phải lớn hơn 0!");
       return;
@@ -754,16 +782,25 @@ function ShoppingAssistantPage() {
     });
   };
 
+  const recommendationCounts = purchases.reduce(
+    (acc, item) => {
+      const label = getAnalysis(item).label;
+      acc[label] += 1;
+      return acc;
+    },
+    { should_buy: 0, consider: 0, dont_buy: 0 },
+  );
+
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-5 animate-fade-in pb-8 sm:space-y-6">
       {/* Header section with Premium design */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-4">
+      <div className="flex flex-col gap-4 rounded-[1.75rem] bg-card/80 p-4 shadow-[var(--shadow-soft)] sm:p-5 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-[image:var(--gradient-primary)] text-primary-foreground shadow-[var(--shadow-glow)]">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-glow)]">
               <ShoppingBag className="h-4.5 w-4.5" />
             </div>
-            <h1 className="font-display text-2xl font-semibold lg:text-3xl">
+            <h1 className="font-display text-xl font-semibold sm:text-2xl lg:text-3xl">
               Trợ lý Kiểm soát mua sắm
             </h1>
           </div>
@@ -777,10 +814,10 @@ function ShoppingAssistantPage() {
           <button
             onClick={handleDemoModeToggle}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-200",
+              "flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all duration-200",
               demoMode
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/70 text-muted-foreground hover:text-foreground"
             )}
           >
             <Compass className="h-3.5 w-3.5" />
@@ -791,7 +828,7 @@ function ShoppingAssistantPage() {
 
       {/* Confetti Reward Success Overlay Card */}
       {savedAmount !== null && (
-        <div className="rounded-2xl border border-success/30 bg-success/10 p-6 flex flex-col md:flex-row items-center justify-between gap-4 animate-scale-in">
+        <div className="rounded-[1.5rem] bg-success/10 p-5 flex flex-col md:flex-row items-center justify-between gap-4 animate-scale-in">
           <div className="flex items-start gap-4 text-center md:text-left">
             <div className="grid h-12 w-12 place-items-center rounded-full bg-success/20 text-success mx-auto md:mx-0 flex-shrink-0">
               <CheckCircle2 className="h-6 w-6" />
@@ -816,9 +853,9 @@ function ShoppingAssistantPage() {
       )}
 
       {/* Dashboard Bento Grid of Purchases Control */}
-      <div className="grid gap-5 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Metric 1: Intended total */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
           <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tổng giá trị định mua</p>
           <div className="mt-2">
             <h2 className="font-display text-2xl font-bold">{formatVND(stats.totalIntended)}</h2>
@@ -829,7 +866,7 @@ function ShoppingAssistantPage() {
         </div>
 
         {/* Metric 2: Pending COD orders */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
           <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tổng đơn chưa trả tiền (COD)</p>
           <div className="mt-2">
             <h2 className="font-display text-2xl font-bold text-warning-foreground">
@@ -842,7 +879,7 @@ function ShoppingAssistantPage() {
         </div>
 
         {/* Metric 3: Emotional Spending Index */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
           <div>
             <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tỷ trọng chi tiêu cảm xúc</p>
             <div className="mt-2 flex items-center justify-between">
@@ -871,7 +908,7 @@ function ShoppingAssistantPage() {
         </div>
 
         {/* AI Insight Box */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
           <div>
             <span className="text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
               <Lightbulb className="h-3.5 w-3.5 text-warning" />
@@ -887,14 +924,14 @@ function ShoppingAssistantPage() {
       </div>
 
       {/* Tabs navigation */}
-      <div className="flex gap-4 border-b border-border">
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-1.5">
         <button
           onClick={() => setActiveTab("assistant")}
           className={cn(
-            "pb-3.5 font-display text-sm font-semibold border-b-2 transition-all duration-200",
+            "min-h-11 rounded-xl px-3 py-2 font-display text-xs font-semibold transition-all duration-200 sm:text-sm",
             activeTab === "assistant"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-card text-primary shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
           🛒 Cân nhắc mua sắm ({purchases.length})
@@ -902,10 +939,10 @@ function ShoppingAssistantPage() {
         <button
           onClick={() => setActiveTab("orders")}
           className={cn(
-            "pb-3.5 font-display text-sm font-semibold border-b-2 transition-all duration-200",
+            "min-h-11 rounded-xl px-3 py-2 font-display text-xs font-semibold transition-all duration-200 sm:text-sm",
             activeTab === "orders"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-card text-primary shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
           📦 Đơn hàng COD & Sắp giao ({orders.filter(o => o.status !== "paid").length})
@@ -917,11 +954,35 @@ function ShoppingAssistantPage() {
          ---------------------------------------------------- */}
       {activeTab === "assistant" && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-success/10 p-4 text-success">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider">Nên mua</span>
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <p className="mt-2 font-display text-2xl font-bold">{recommendationCounts.should_buy}</p>
+            </div>
+            <div className="rounded-2xl bg-warning/10 p-4 text-warning-foreground">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider">Cân nhắc</span>
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <p className="mt-2 font-display text-2xl font-bold">{recommendationCounts.consider}</p>
+            </div>
+            <div className="rounded-2xl bg-destructive/10 p-4 text-destructive">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider">Không nên mua</span>
+                <AlertCircle className="h-4 w-4" />
+              </div>
+              <p className="mt-2 font-display text-2xl font-bold">{recommendationCounts.dont_buy}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-display text-base font-semibold">Danh sách phân tích sản phẩm</h3>
             <button
               onClick={() => setIsAddPurchaseOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl hover:opacity-90 shadow-sm transition-all"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-2xl bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90"
             >
               <Plus className="h-4 w-4" />
               Thêm món định mua
@@ -929,7 +990,7 @@ function ShoppingAssistantPage() {
           </div>
 
           {purchases.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+            <div className="rounded-[1.5rem] border border-dashed border-border/70 bg-card/70 p-8 text-center sm:p-12">
               <ShoppingBag className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-60" />
               <h4 className="font-display text-sm font-semibold">Chưa có sản phẩm nào đang cân nhắc</h4>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
@@ -937,7 +998,7 @@ function ShoppingAssistantPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
               {purchases.map((item) => {
                 const analysis = getAnalysis(item);
 
@@ -967,7 +1028,7 @@ function ShoppingAssistantPage() {
                 return (
                   <div
                     key={item.id}
-                    className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between relative transition-all duration-300 hover:scale-[1.015]"
+                    className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] flex flex-col justify-between relative transition-all duration-300 sm:p-5 active:scale-[0.99] sm:hover:scale-[1.01]"
                   >
                     <div>
                       {/* Top labels and ratings */}
@@ -1005,6 +1066,26 @@ function ShoppingAssistantPage() {
                           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                             ({item.categoryName})
                           </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-2xl bg-muted/45 p-3">
+                        <div className="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <span>Ảnh hưởng tài chính</span>
+                          <span>{analysis.impactScore}%</span>
+                        </div>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-background">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              analysis.label === "dont_buy"
+                                ? "bg-destructive"
+                                : analysis.label === "consider"
+                                  ? "bg-warning"
+                                  : "bg-success",
+                            )}
+                            style={{ width: `${analysis.impactScore}%` }}
+                          />
                         </div>
                       </div>
 
@@ -1090,11 +1171,11 @@ function ShoppingAssistantPage() {
 
                       {/* Scenario C: Clean Item, waiting for delay to be enabled */}
                       {!isWaiting && (
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           {analysis.label !== "should_buy" && (
                             <button
                               onClick={() => handleActivateWait(item.id)}
-                              className="flex-1 py-2 bg-warning text-warning-foreground text-xs font-bold rounded-xl shadow-sm hover:opacity-90 transition-all flex items-center justify-center gap-1"
+                              className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-2xl bg-warning px-3 py-2 text-xs font-bold text-warning-foreground shadow-sm transition-all hover:opacity-90"
                             >
                               <Clock className="h-3.5 w-3.5" />
                               Chờ 24h suy nghĩ
@@ -1111,7 +1192,7 @@ function ShoppingAssistantPage() {
                               handleStillWantToBuy(item);
                             }}
                             className={cn(
-                              "flex-1 py-2 text-xs font-bold rounded-xl shadow-sm transition-all",
+                              "min-h-11 flex-1 rounded-2xl px-3 py-2 text-xs font-bold shadow-sm transition-all",
                               analysis.label === "dont_buy"
                                 ? "bg-muted text-muted-foreground cursor-not-allowed"
                                 : "bg-primary text-primary-foreground hover:opacity-90"
@@ -1122,7 +1203,7 @@ function ShoppingAssistantPage() {
 
                           <button
                             onClick={() => handleDeletePurchase(item.id)}
-                            className="p-2 border border-border hover:bg-muted text-muted-foreground hover:text-destructive rounded-xl transition-all"
+                            className="min-h-11 rounded-2xl border border-border/70 px-3 text-muted-foreground transition-all hover:bg-muted hover:text-destructive"
                             title="Xóa"
                           >
                             <Trash2 className="h-4 w-4" />

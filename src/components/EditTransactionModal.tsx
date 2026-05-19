@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,7 +62,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
     }
   }, [transaction, open]);
 
-  const parsedPreview = React.useMemo(() => {
+  const parsedPreview = useMemo(() => {
     const hasLetters = /[a-zA-Z]/g.test(amountStr);
     if (!hasLetters) return null;
     const parsed = parseAmountShortcut(amountStr);
