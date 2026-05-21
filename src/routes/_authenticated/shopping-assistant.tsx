@@ -1487,7 +1487,7 @@ function ShoppingAssistantPage() {
                   <thead>
                     <tr className="border-b border-border bg-muted/30 text-xs font-bold text-muted-foreground">
                       <th className="p-4">Đơn hàng</th>
-                      <th className="p-4">Nền tảng</th>
+                      <th className="p-4">Nền t���ng</th>
                       <th className="p-4">Số tiền</th>
                       <th className="p-4">Danh mục</th>
                       <th className="p-4">Trạng thái</th>
@@ -1518,7 +1518,7 @@ function ShoppingAssistantPage() {
                                 order.shopName === "Shopee"
                                   ? "bg-orange-500/10 text-orange-500 border-orange-500/20"
                                   : order.shopName === "TikTok Shop"
-                                    ? "bg-slate-900/10 text-foreground border-slate-900/20"
+                                    ? "bg-muted/10 text-foreground border-border"
                                     : "bg-primary/10 text-primary border-primary/20",
                               )}
                             >
@@ -1541,7 +1541,7 @@ function ShoppingAssistantPage() {
                               className={cn(
                                 "rounded-lg border px-2 py-1 text-xs font-bold outline-none cursor-pointer focus:ring-1 focus:ring-ring disabled:opacity-75 disabled:cursor-not-allowed",
                                 order.status === "pending"
-                                  ? "bg-yellow-500/15 text-warning-foreground border-yellow-500/30"
+                                  ? "bg-warning/15 text-warning-foreground border-warning/30"
                                   : order.status === "delivered"
                                     ? "bg-primary/10 text-primary border-primary/20"
                                     : "bg-success/10 text-success border-success/20",
