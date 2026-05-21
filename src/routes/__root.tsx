@@ -17,6 +17,7 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/lib/theme";
 import { supabase } from "@/integrations/supabase/client";
+import { friendlyError } from "@/lib/errors";
 
 function NotFoundComponent() {
   return (
