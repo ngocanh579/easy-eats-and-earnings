@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Outlet,
   createFileRoute,
+  redirect,
   useNavigate,
 } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +10,12 @@ import { AppShell } from "@/components/AppShell";
 import { QuickAdd } from "@/components/QuickAdd";
 
 export const Route = createFileRoute("/_authenticated")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      throw redirect({ to: "/login" });
+    }
+  },
   component: AuthLayout,
 });
 
