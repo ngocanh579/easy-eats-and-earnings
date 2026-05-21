@@ -411,10 +411,17 @@ function ShoppingAssistantPage() {
     syncWithServer();
 
     return () => {
-      // Cleanup debounce timeout on unmount to prevent memory leaks
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = null;
+      }
+      if (purchasesSyncRef.current) {
+        clearTimeout(purchasesSyncRef.current);
+        purchasesSyncRef.current = null;
+      }
+      if (ordersSyncRef.current) {
+        clearTimeout(ordersSyncRef.current);
+        ordersSyncRef.current = null;
       }
     };
   }, [demoMode]);
