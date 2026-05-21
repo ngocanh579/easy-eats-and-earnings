@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -69,6 +69,11 @@ interface Category {
   id: string;
   name: string;
   kind: "expense" | "income" | "debt" | "savings";
+}
+
+interface ShoppingMetadata {
+  purchases: IntendedPurchase[];
+  orders: UnpaidOrder[];
 }
 
 // ----------------------------------------------------
@@ -205,6 +210,9 @@ function ShoppingAssistantPage() {
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
 
+  // Multi-device sync state
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Confetti / Congratulatory State when skipping an impulse buy
   const [savedAmount, setSavedAmount] = useState<number | null>(null);
   const [savedItemName, setSavedItemName] = useState<string>("");
@@ -263,7 +271,7 @@ function ShoppingAssistantPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load and initialize data from localStorage
+  // Load and initialize data from localStorage + Supabase sync
   useEffect(() => {
     const savedPurchases = localStorage.getItem("easy_eats_intended_purchases");
     const savedOrders = localStorage.getItem("easy_eats_pending_orders");
@@ -288,16 +296,168 @@ function ShoppingAssistantPage() {
       setOrders(DEFAULT_ORDERS);
       localStorage.setItem("easy_eats_pending_orders", JSON.stringify(DEFAULT_ORDERS));
     }
+
+    // Start multi-device sync with Supabase
+    const syncWithServer = async () => {
+      try {
+        // Fetch current user to determine whose data to sync
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+        if (userError || !user) {
+          console.log("[v0] User not authenticated for sync");
+          return;
+        }
+
+        // Fetch server purchases metadata
+        // Note: user_shopping_metadata table needs to be created in Supabase
+        const { data: serverData, error: fetchError } = await (supabase.rpc(
+          "get_shopping_metadata",
+          {
+            user_id: user.id,
+          },
+        ) as unknown as Promise<{
+          data: ShoppingMetadata | null;
+          error: null | { code: string };
+        }>);
+
+        if (fetchError) {
+          // RPC doesn't exist yet - will be created when table is set up
+          console.log("[v0] Sync RPC not available, using localStorage only");
+          return;
+        }
+
+        if (serverData) {
+          // Validate server data is proper Array format before syncing
+          const serverPurchases = serverData.purchases;
+          const serverOrders = serverData.orders;
+
+          // Ensure data is Array before syncing - prevent malformed metadata from overwriting
+          if (Array.isArray(serverPurchases) && serverPurchases.length > 0) {
+            const localTs = Math.max(
+              ...(JSON.parse(savedPurchases || "[]") as IntendedPurchase[]).map((p) =>
+                new Date(p.createdAt).getTime(),
+              ),
+              0,
+            );
+            const serverTs = Math.max(
+              ...serverPurchases.map((p) => new Date(p.createdAt).getTime()),
+              0,
+            );
+
+            // Timestamp conflict resolution: server is source of truth
+            if (serverTs >= localTs) {
+              console.log("[v0] Server purchases are newer, syncing...");
+              setPurchases(serverPurchases);
+              localStorage.setItem("easy_eats_intended_purchases", JSON.stringify(serverPurchases));
+            }
+          }
+
+          if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+            const localTs = Math.max(
+              ...(JSON.parse(savedOrders || "[]") as UnpaidOrder[]).map((o) =>
+                new Date(o.createdAt).getTime(),
+              ),
+              0,
+            );
+            const serverTs = Math.max(
+              ...serverOrders.map((o) => new Date(o.createdAt).getTime()),
+              0,
+            );
+
+            // Timestamp conflict resolution: server is source of truth
+            if (serverTs >= localTs) {
+              console.log("[v0] Server orders are newer, syncing...");
+              const normalizedServerOrders = serverOrders.map(normalizeSavedOrder);
+              setOrders(normalizedServerOrders);
+              localStorage.setItem(
+                "easy_eats_pending_orders",
+                JSON.stringify(normalizedServerOrders),
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[v0] Sync error:", err);
+      }
+    };
+
+    syncWithServer();
+
+    return () => {
+      // Cleanup debounce timeout on unmount to prevent memory leaks
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const savePurchasesState = (updated: IntendedPurchase[]) => {
     setPurchases(updated);
     localStorage.setItem("easy_eats_intended_purchases", JSON.stringify(updated));
+
+    // Debounce sync to server
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    syncTimeoutRef.current = setTimeout(async () => {
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+        if (userError || !user) return;
+
+        // Validate data before sending - ensure only Array data is synced
+        if (!Array.isArray(updated)) {
+          console.log("[v0] Invalid purchases data, skipping sync");
+          return;
+        }
+
+        // Attempt to sync - will fail gracefully if RPC doesn't exist yet
+        await (supabase.rpc("update_shopping_purchases", {
+          purchases_data: updated,
+        }) as unknown as Promise<void>);
+      } catch (err) {
+        // RPC not available yet - will work once table is set up
+        console.log("[v0] Sync purchases not available, relying on localStorage");
+      }
+    }, 1000);
   };
 
   const saveOrdersState = (updated: UnpaidOrder[]) => {
     setOrders(updated);
     localStorage.setItem("easy_eats_pending_orders", JSON.stringify(updated));
+
+    // Debounce sync to server
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    syncTimeoutRef.current = setTimeout(async () => {
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+        if (userError || !user) return;
+
+        // Validate data before sending - ensure only Array data is synced
+        if (!Array.isArray(updated)) {
+          console.log("[v0] Invalid orders data, skipping sync");
+          return;
+        }
+
+        // Attempt to sync - will fail gracefully if RPC doesn't exist yet
+        await (supabase.rpc("update_shopping_orders", {
+          orders_data: updated,
+        }) as unknown as Promise<void>);
+      } catch (err) {
+        // RPC not available yet - will work once table is set up
+        console.log("[v0] Sync orders not available, relying on localStorage");
+      }
+    }, 1000);
   };
 
   const handleDemoModeToggle = () => {
@@ -363,7 +523,7 @@ function ShoppingAssistantPage() {
     }
     if (dbCategories.length > 0 && !selectedCategoryId) {
       // Find default categories
-      const shopping = dbCategories.find(c => c.name.toLowerCase().includes("sắm"));
+      const shopping = dbCategories.find((c) => c.name.toLowerCase().includes("sắm"));
       setSelectedCategoryId(shopping ? shopping.id : dbCategories[0].id);
     }
   }, [dbWallets, dbCategories, selectedWalletId, selectedCategoryId]);
@@ -382,7 +542,15 @@ function ShoppingAssistantPage() {
   // MUTATION: CONVERT COD ORDER TO ACTUAL SUPABASE TX
   // ----------------------------------------------------
   const payOrderMutation = useMutation({
-    mutationFn: async ({ order, walletId, categoryId }: { order: UnpaidOrder; walletId: string; categoryId: string }) => {
+    mutationFn: async ({
+      order,
+      walletId,
+      categoryId,
+    }: {
+      order: UnpaidOrder;
+      walletId: string;
+      categoryId: string;
+    }) => {
       // 1. Create real transaction entry
       const { data: txData, error: txError } = await supabase.from("transactions").insert({
         wallet_id: walletId,
@@ -420,11 +588,13 @@ function ShoppingAssistantPage() {
 
       // Update local storage status
       const updated = orders.map((o) =>
-        o.id === variables.order.id ? { ...o, status: "paid" as const } : o
+        o.id === variables.order.id ? { ...o, status: "paid" as const } : o,
       );
       saveOrdersState(updated);
 
-      toast.success(`Đã thanh toán thành công đơn hàng! Đã ghi nhận chi tiêu ${formatVND(variables.order.price)}.`);
+      toast.success(
+        `Đã thanh toán thành công đơn hàng! Đã ghi nhận chi tiêu ${formatVND(variables.order.price)}.`,
+      );
       setIsPayModalOpen(false);
     },
     onError: (err) => {
@@ -444,13 +614,15 @@ function ShoppingAssistantPage() {
     let reason = "";
 
     const price = item.price;
-    const isNeed = ["ăn uống", "nhà ở", "đi lại", "hóa đơn", "y tế", "học tập"].includes(item.categoryName.toLowerCase()) ||
-      /phở|cơm|bánh|điện|nước|xăng|cước|học|thuốc/i.test(item.name.toLowerCase());
+    const isNeed =
+      ["ăn uống", "nhà ở", "đi lại", "hóa đơn", "y tế", "học tập"].includes(
+        item.categoryName.toLowerCase(),
+      ) || /phở|cơm|bánh|điện|nước|xăng|cước|học|thuốc/i.test(item.name.toLowerCase());
 
     // Recent purchases logic (emotional duplicate checks)
     const recentSimilarTxs = dbTxs.filter((t: any) => {
       const note = (t.note || "").toLowerCase();
-      const catName = dbCategories.find(c => c.id === t.category_id)?.name.toLowerCase() || "";
+      const catName = dbCategories.find((c) => c.id === t.category_id)?.name.toLowerCase() || "";
       const queryName = item.name.toLowerCase().split(" ")[0];
       return note.includes(queryName) || catName.includes(item.categoryName.toLowerCase());
     });
@@ -474,7 +646,8 @@ function ShoppingAssistantPage() {
         label = "consider";
         labelName = "Cân nhắc kỹ";
         colorClass = "bg-warning/10 text-warning border-warning/20";
-        reason = "Đây là món đồ giải trí/cảm xúc có giá trị lớn. Bạn nên kích hoạt trì hoãn 24 giờ suy nghĩ trước.";
+        reason =
+          "Đây là món đồ giải trí/cảm xúc có giá trị lớn. Bạn nên kích hoạt trì hoãn 24 giờ suy nghĩ trước.";
         warnings.push("Vượt hạn mức tự do cho đồ ngẫu hứng.");
       } else {
         label = "consider";
@@ -490,7 +663,9 @@ function ShoppingAssistantPage() {
       labelName = "Không nên mua";
       colorClass = "bg-destructive/10 text-destructive border-destructive/20";
       reason = `Bạn đã mua ${recentSimilarCount} món tương tự hoặc chi tiêu nhiều trong danh mục ${item.categoryName} tháng này!`;
-      warnings.push(`Cảnh báo: Đã phát hiện ${recentSimilarCount} chi tiêu cùng loại thời gian gần đây.`);
+      warnings.push(
+        `Cảnh báo: Đã phát hiện ${recentSimilarCount} chi tiêu cùng loại thời gian gần đây.`,
+      );
     }
     // Rule 4: Ample funds, Essentials or highly prioritized want
     else {
@@ -507,7 +682,8 @@ function ShoppingAssistantPage() {
       label = "dont_buy";
       labelName = "Không nên mua lúc này";
       colorClass = "bg-destructive/10 text-destructive border-destructive/20";
-      reason = "Số dư ví hiện tại đang ở mức báo động (< 3 triệu). Nên hoãn các khoản chi ngẫu hứng.";
+      reason =
+        "Số dư ví hiện tại đang ở mức báo động (< 3 triệu). Nên hoãn các khoản chi ngẫu hứng.";
       warnings.push("Số dư dự trữ trong ví còn quá thấp.");
     }
 
@@ -515,8 +691,10 @@ function ShoppingAssistantPage() {
       100,
       Math.max(
         6,
-        Math.round(walletRatio * 100 + (item.rating <= 2 ? 18 : 0) + (recentSimilarCount >= 3 ? 20 : 0))
-      )
+        Math.round(
+          walletRatio * 100 + (item.rating <= 2 ? 18 : 0) + (recentSimilarCount >= 3 ? 20 : 0),
+        ),
+      ),
     );
 
     return { label, labelName, colorClass, reason, warnings, impactScore };
@@ -535,11 +713,12 @@ function ShoppingAssistantPage() {
     const emotionalWants = purchases.filter(
       (p) =>
         p.rating <= 3 &&
-        !["ăn uống", "nhà ở", "đi lại", "hóa đơn", "y tế"].includes(p.categoryName.toLowerCase())
+        !["ăn uống", "nhà ở", "đi lại", "hóa đơn", "y tế"].includes(p.categoryName.toLowerCase()),
     );
     const emotionalWantsVal = emotionalWants.reduce((sum, p) => sum + p.price, 0);
 
-    const emotionalIndex = totalIntended > 0 ? Math.round((emotionalWantsVal / totalIntended) * 100) : 0;
+    const emotionalIndex =
+      totalIntended > 0 ? Math.round((emotionalWantsVal / totalIntended) * 100) : 0;
 
     let emotionalIndexTone: "safe" | "warning" | "danger" = "safe";
     let emotionalIndexText = "An toàn";
@@ -574,7 +753,7 @@ function ShoppingAssistantPage() {
     // Insight 1: COD liability warning
     if (stats.totalUnpaidOrders > 1000000) {
       list.push(
-        `Dư nợ đơn hàng online đang chờ thanh toán (COD) là ${formatVND(stats.totalUnpaidOrders)}. Hãy đảm bảo tài khoản ngân hàng hoặc ví mặt còn đủ để thanh toán khi shipper giao hàng!`
+        `Dư nợ đơn hàng online đang chờ thanh toán (COD) là ${formatVND(stats.totalUnpaidOrders)}. Hãy đảm bảo tài khoản ngân hàng hoặc ví mặt còn đủ để thanh toán khi shipper giao hàng!`,
       );
     } else {
       list.push("Hạn mức đơn hàng COD của bạn đang ở mức rất an toàn dưới 1 triệu.");
@@ -585,18 +764,18 @@ function ShoppingAssistantPage() {
     if (smallImpulses.length >= 2) {
       const sumSmall = smallImpulses.reduce((sum, p) => sum + p.price, 0);
       list.push(
-        `Phát hiện thói quen mua sắm ngẫu hứng giá rẻ (Trà sữa, Cafe,...). Tổng các khoản bốc đồng nhỏ này đang ngốn ${formatVND(sumSmall)} tháng này. Hãy tập thói quen gom tiền lại tiết kiệm.`
+        `Phát hiện thói quen mua sắm ngẫu hứng giá rẻ (Trà sữa, Cafe,...). Tổng các khoản bốc đồng nhỏ này đang ngốn ${formatVND(sumSmall)} tháng này. Hãy tập thói quen gom tiền lại tiết kiệm.`,
       );
     }
 
     // Insight 3: Impulsive index warning
     if (stats.emotionalIndex >= 60) {
       list.push(
-        `Chỉ số mua sắm cảm xúc của bạn đang rất cao (${stats.emotionalIndex}%). Hãy kích hoạt ngay bộ chống mua ngẫu hứng 24 giờ cho các sản phẩm 3 sao trở xuống để tránh thâm hụt ví.`
+        `Chỉ số mua sắm cảm xúc của bạn đang rất cao (${stats.emotionalIndex}%). Hãy kích hoạt ngay bộ chống mua ngẫu hứng 24 giờ cho các sản phẩm 3 sao trở xuống để tránh thâm hụt ví.`,
       );
     } else {
       list.push(
-        "Chỉ số kiểm soát mua sắm cảm xúc của bạn rất tốt! Tiếp tục phát huy thói quen suy nghĩ thấu đáo."
+        "Chỉ số kiểm soát mua sắm cảm xúc của bạn rất tốt! Tiếp tục phát huy thói quen suy nghĩ thấu đáo.",
       );
     }
 
@@ -699,7 +878,7 @@ function ShoppingAssistantPage() {
   // 4. ACTIVATE 24H DELAY TIMEOUT
   const handleActivateWait = (id: string) => {
     const updated = purchases.map((p) =>
-      p.id === id ? { ...p, waitTimerStartedAt: new Date().toISOString() } : p
+      p.id === id ? { ...p, waitTimerStartedAt: new Date().toISOString() } : p,
     );
     savePurchasesState(updated);
     toast.warning("🔒 Đã khóa sản phẩm trong 24 giờ để suy nghĩ. Hãy tránh mua sắm bốc đồng!");
@@ -710,7 +889,7 @@ function ShoppingAssistantPage() {
     // Subtract 24.1 hours into the past to trigger completion
     const pastTime = new Date(Date.now() - 24.1 * 60 * 60 * 1000).toISOString();
     const updated = purchases.map((p) =>
-      p.id === id ? { ...p, waitTimerStartedAt: pastTime } : p
+      p.id === id ? { ...p, waitTimerStartedAt: pastTime } : p,
     );
     savePurchasesState(updated);
     toast.success("⚡ Đã tua nhanh giả lập 24h trôi qua! Mời bạn đánh giá lại mong muốn.");
@@ -817,7 +996,7 @@ function ShoppingAssistantPage() {
               "flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all duration-200",
               demoMode
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-muted/70 text-muted-foreground hover:text-foreground"
+                : "bg-muted/70 text-muted-foreground hover:text-foreground",
             )}
           >
             <Compass className="h-3.5 w-3.5" />
@@ -838,8 +1017,9 @@ function ShoppingAssistantPage() {
                 Chiến thắng Cám dỗ mua sắm thành công! 🎉
               </h3>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xl">
-                Tuyệt vời! Bạn đã vượt qua 24h suy nghĩ thấu đáo và quyết định hủy bỏ ý định mua món đồ ngẫu hứng: <strong>"{savedItemName}"</strong>.
-                Bạn vừa tự giữ lại cho tài khoản ví của mình <strong>{formatVND(savedAmount)}</strong>!
+                Tuyệt vời! Bạn đã vượt qua 24h suy nghĩ thấu đáo và quyết định hủy bỏ ý định mua món
+                đồ ngẫu hứng: <strong>"{savedItemName}"</strong>. Bạn vừa tự giữ lại cho tài khoản
+                ví của mình <strong>{formatVND(savedAmount)}</strong>!
               </p>
             </div>
           </div>
@@ -856,7 +1036,9 @@ function ShoppingAssistantPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Metric 1: Intended total */}
         <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
-          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tổng giá trị định mua</p>
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+            Tổng giá trị định mua
+          </p>
           <div className="mt-2">
             <h2 className="font-display text-2xl font-bold">{formatVND(stats.totalIntended)}</h2>
             <p className="text-[10px] text-muted-foreground mt-1 font-medium">
@@ -867,7 +1049,9 @@ function ShoppingAssistantPage() {
 
         {/* Metric 2: Pending COD orders */}
         <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
-          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tổng đơn chưa trả tiền (COD)</p>
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+            Tổng đơn chưa trả tiền (COD)
+          </p>
           <div className="mt-2">
             <h2 className="font-display text-2xl font-bold text-warning-foreground">
               {formatVND(stats.totalUnpaidOrders)}
@@ -881,27 +1065,52 @@ function ShoppingAssistantPage() {
         {/* Metric 3: Emotional Spending Index */}
         <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 flex flex-col justify-between">
           <div>
-            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tỷ trọng chi tiêu cảm xúc</p>
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+              Tỷ trọng chi tiêu cảm xúc
+            </p>
             <div className="mt-2 flex items-center justify-between">
               <div>
                 <h2 className="font-display text-2xl font-bold">{stats.emotionalIndex}%</h2>
-                <span className={cn(
-                  "inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1.5 border",
-                  stats.emotionalColor
-                )}>
+                <span
+                  className={cn(
+                    "inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1.5 border",
+                    stats.emotionalColor,
+                  )}
+                >
                   {stats.emotionalIndexText}
                 </span>
               </div>
               <div className="relative h-14 w-14">
                 {/* Circular indicator */}
                 <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="28" cy="28" r="23" stroke="var(--color-muted)" strokeWidth="4" fill="transparent" />
-                  <circle cx="28" cy="28" r="23" stroke={stats.emotionalIndexTone === "danger" ? "var(--color-destructive)" : stats.emotionalIndexTone === "warning" ? "var(--color-warning)" : "var(--color-success)"} strokeWidth="4" fill="transparent"
+                  <circle
+                    cx="28"
+                    cy="28"
+                    r="23"
+                    stroke="var(--color-muted)"
+                    strokeWidth="4"
+                    fill="transparent"
+                  />
+                  <circle
+                    cx="28"
+                    cy="28"
+                    r="23"
+                    stroke={
+                      stats.emotionalIndexTone === "danger"
+                        ? "var(--color-destructive)"
+                        : stats.emotionalIndexTone === "warning"
+                          ? "var(--color-warning)"
+                          : "var(--color-success)"
+                    }
+                    strokeWidth="4"
+                    fill="transparent"
                     strokeDasharray={2 * Math.PI * 23}
                     strokeDashoffset={2 * Math.PI * 23 * (1 - stats.emotionalIndex / 100)}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">ESI</span>
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">
+                  ESI
+                </span>
               </div>
             </div>
           </div>
@@ -916,7 +1125,9 @@ function ShoppingAssistantPage() {
             </span>
             <ul className="space-y-1.5 text-[10px] text-muted-foreground leading-normal font-medium">
               {aiInsights.slice(0, 2).map((ins, i) => (
-                <li key={i} className="list-disc pl-1 list-inside truncate-2-lines">{ins}</li>
+                <li key={i} className="list-disc pl-1 list-inside truncate-2-lines">
+                  {ins}
+                </li>
               ))}
             </ul>
           </div>
@@ -931,7 +1142,7 @@ function ShoppingAssistantPage() {
             "min-h-11 rounded-xl px-3 py-2 font-display text-xs font-semibold transition-all duration-200 sm:text-sm",
             activeTab === "assistant"
               ? "bg-card text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           🛒 Cân nhắc mua sắm ({purchases.length})
@@ -942,10 +1153,10 @@ function ShoppingAssistantPage() {
             "min-h-11 rounded-xl px-3 py-2 font-display text-xs font-semibold transition-all duration-200 sm:text-sm",
             activeTab === "orders"
               ? "bg-card text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
-          📦 Đơn hàng COD & Sắp giao ({orders.filter(o => o.status !== "paid").length})
+          📦 Đơn hàng COD & Sắp giao ({orders.filter((o) => o.status !== "paid").length})
         </button>
       </div>
 
@@ -960,21 +1171,27 @@ function ShoppingAssistantPage() {
                 <span className="text-xs font-bold uppercase tracking-wider">Nên mua</span>
                 <CheckCircle2 className="h-4 w-4" />
               </div>
-              <p className="mt-2 font-display text-2xl font-bold">{recommendationCounts.should_buy}</p>
+              <p className="mt-2 font-display text-2xl font-bold">
+                {recommendationCounts.should_buy}
+              </p>
             </div>
             <div className="rounded-2xl bg-warning/10 p-4 text-warning-foreground">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider">Cân nhắc</span>
                 <AlertTriangle className="h-4 w-4" />
               </div>
-              <p className="mt-2 font-display text-2xl font-bold">{recommendationCounts.consider}</p>
+              <p className="mt-2 font-display text-2xl font-bold">
+                {recommendationCounts.consider}
+              </p>
             </div>
             <div className="rounded-2xl bg-destructive/10 p-4 text-destructive">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider">Không nên mua</span>
                 <AlertCircle className="h-4 w-4" />
               </div>
-              <p className="mt-2 font-display text-2xl font-bold">{recommendationCounts.dont_buy}</p>
+              <p className="mt-2 font-display text-2xl font-bold">
+                {recommendationCounts.dont_buy}
+              </p>
             </div>
           </div>
 
@@ -992,9 +1209,12 @@ function ShoppingAssistantPage() {
           {purchases.length === 0 ? (
             <div className="rounded-[1.5rem] border border-dashed border-border/70 bg-card/70 p-8 text-center sm:p-12">
               <ShoppingBag className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-60" />
-              <h4 className="font-display text-sm font-semibold">Chưa có sản phẩm nào đang cân nhắc</h4>
+              <h4 className="font-display text-sm font-semibold">
+                Chưa có sản phẩm nào đang cân nhắc
+              </h4>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                Khi bạn nảy sinh ý định mua bất kỳ món đồ giải trí hay ngẫu hứng nào, hãy bấm thêm vào đây để Trợ lý phân tích trước khi mua!
+                Khi bạn nảy sinh ý định mua bất kỳ món đồ giải trí hay ngẫu hứng nào, hãy bấm thêm
+                vào đây để Trợ lý phân tích trước khi mua!
               </p>
             </div>
           ) : (
@@ -1033,10 +1253,12 @@ function ShoppingAssistantPage() {
                     <div>
                       {/* Top labels and ratings */}
                       <div className="flex justify-between items-start gap-2">
-                        <span className={cn(
-                          "px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider",
-                          analysis.colorClass
-                        )}>
+                        <span
+                          className={cn(
+                            "px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider",
+                            analysis.colorClass,
+                          )}
+                        >
                           {analysis.labelName}
                         </span>
 
@@ -1047,7 +1269,7 @@ function ShoppingAssistantPage() {
                               key={i}
                               className={cn(
                                 "h-3.5 w-3.5",
-                                i < item.rating ? "fill-warning" : "text-muted opacity-45"
+                                i < item.rating ? "fill-warning" : "text-muted opacity-45",
                               )}
                             />
                           ))}
@@ -1056,7 +1278,10 @@ function ShoppingAssistantPage() {
 
                       {/* Info & Price */}
                       <div className="mt-3.5">
-                        <h4 className="font-display text-sm font-semibold truncate" title={item.name}>
+                        <h4
+                          className="font-display text-sm font-semibold truncate"
+                          title={item.name}
+                        >
                           {item.name}
                         </h4>
                         <div className="flex items-baseline gap-1.5 mt-1">
@@ -1111,7 +1336,10 @@ function ShoppingAssistantPage() {
                       {analysis.warnings.length > 0 && (
                         <div className="mt-4 border-t border-dashed border-border/80 pt-3 space-y-1.5">
                           {analysis.warnings.map((warn, i) => (
-                            <p key={i} className="text-[10px] text-destructive font-semibold flex items-center gap-1">
+                            <p
+                              key={i}
+                              className="text-[10px] text-destructive font-semibold flex items-center gap-1"
+                            >
                               <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> {warn}
                             </p>
                           ))}
@@ -1185,7 +1413,9 @@ function ShoppingAssistantPage() {
                           <button
                             onClick={() => {
                               if (analysis.label === "dont_buy") {
-                                toast.error("Bộ phân tích cảnh báo KHÔNG NÊN mua lúc này. Hãy kích hoạt trì hoãn để suy nghĩ!");
+                                toast.error(
+                                  "Bộ phân tích cảnh báo KHÔNG NÊN mua lúc này. Hãy kích hoạt trì hoãn để suy nghĩ!",
+                                );
                                 return;
                               }
                               // Otherwise let them buy: move to COD Order list
@@ -1195,7 +1425,7 @@ function ShoppingAssistantPage() {
                               "min-h-11 flex-1 rounded-2xl px-3 py-2 text-xs font-bold shadow-sm transition-all",
                               analysis.label === "dont_buy"
                                 ? "bg-muted text-muted-foreground cursor-not-allowed"
-                                : "bg-primary text-primary-foreground hover:opacity-90"
+                                : "bg-primary text-primary-foreground hover:opacity-90",
                             )}
                           >
                             Duyệt Mua ngay
@@ -1225,7 +1455,9 @@ function ShoppingAssistantPage() {
       {activeTab === "orders" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="font-display text-base font-semibold">Khoản COD & Đơn hàng online chưa trả tiền</h3>
+            <h3 className="font-display text-base font-semibold">
+              Khoản COD & Đơn hàng online chưa trả tiền
+            </h3>
             <button
               onClick={() => setIsAddOrderOpen(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl hover:opacity-90 shadow-sm transition-all"
@@ -1238,9 +1470,12 @@ function ShoppingAssistantPage() {
           {orders.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-12 text-center">
               <Truck className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-60 animate-bounce" />
-              <h4 className="font-display text-sm font-semibold">Chưa có đơn hàng online COD nào</h4>
+              <h4 className="font-display text-sm font-semibold">
+                Chưa có đơn hàng online COD nào
+              </h4>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                Lưu trữ các đơn mua online chưa thanh toán tại đây. Khi hàng về, bấm duyệt chuyển giao dịch thật để tự động ghi nhận số liệu.
+                Lưu trữ các đơn mua online chưa thanh toán tại đây. Khi hàng về, bấm duyệt chuyển
+                giao dịch thật để tự động ghi nhận số liệu.
               </p>
             </div>
           ) : (
@@ -1265,7 +1500,7 @@ function ShoppingAssistantPage() {
                           key={order.id}
                           className={cn(
                             "transition-all",
-                            isPaid ? "opacity-60 bg-muted/10" : "hover:bg-muted/10"
+                            isPaid ? "opacity-60 bg-muted/10" : "hover:bg-muted/10",
                           )}
                         >
                           <td className="p-4">
@@ -1275,12 +1510,16 @@ function ShoppingAssistantPage() {
                             </span>
                           </td>
                           <td className="p-4">
-                            <span className={cn(
-                              "inline-block px-2 py-0.5 rounded text-[10px] font-bold border",
-                              order.shopName === "Shopee" ? "bg-orange-500/10 text-orange-500 border-orange-500/20" :
-                                order.shopName === "TikTok Shop" ? "bg-slate-900/10 text-foreground border-slate-900/20" :
-                                  "bg-primary/10 text-primary border-primary/20"
-                            )}>
+                            <span
+                              className={cn(
+                                "inline-block px-2 py-0.5 rounded text-[10px] font-bold border",
+                                order.shopName === "Shopee"
+                                  ? "bg-orange-500/10 text-orange-500 border-orange-500/20"
+                                  : order.shopName === "TikTok Shop"
+                                    ? "bg-slate-900/10 text-foreground border-slate-900/20"
+                                    : "bg-primary/10 text-primary border-primary/20",
+                              )}
+                            >
                               {order.shopName}
                             </span>
                           </td>
@@ -1294,17 +1533,34 @@ function ShoppingAssistantPage() {
                             <select
                               disabled={isPaid}
                               value={order.status}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as any)}
+                              onChange={(e) =>
+                                handleUpdateOrderStatus(order.id, e.target.value as any)
+                              }
                               className={cn(
                                 "rounded-lg border px-2 py-1 text-xs font-bold outline-none cursor-pointer focus:ring-1 focus:ring-ring disabled:opacity-75 disabled:cursor-not-allowed",
-                                order.status === "pending" ? "bg-yellow-500/15 text-warning-foreground border-yellow-500/30" :
-                                  order.status === "delivered" ? "bg-primary/10 text-primary border-primary/20" :
-                                    "bg-success/10 text-success border-success/20"
+                                order.status === "pending"
+                                  ? "bg-yellow-500/15 text-warning-foreground border-yellow-500/30"
+                                  : order.status === "delivered"
+                                    ? "bg-primary/10 text-primary border-primary/20"
+                                    : "bg-success/10 text-success border-success/20",
                               )}
                             >
-                              <option value="pending" className="bg-card text-foreground font-bold">🛒 Chờ hàng (Shipper)</option>
-                              <option value="delivered" className="bg-card text-foreground font-bold">📦 Đã giao (COD)</option>
-                              <option value="paid" className="bg-card text-foreground font-bold" disabled>🎉 Đã thanh toán</option>
+                              <option value="pending" className="bg-card text-foreground font-bold">
+                                🛒 Chờ hàng (Shipper)
+                              </option>
+                              <option
+                                value="delivered"
+                                className="bg-card text-foreground font-bold"
+                              >
+                                📦 Đã giao (COD)
+                              </option>
+                              <option
+                                value="paid"
+                                className="bg-card text-foreground font-bold"
+                                disabled
+                              >
+                                🎉 Đã thanh toán
+                              </option>
                             </select>
                           </td>
                           <td className="p-4 text-right">
@@ -1361,7 +1617,9 @@ function ShoppingAssistantPage() {
             <form onSubmit={handleAddPurchase} className="mt-4 space-y-4">
               {/* Product name */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Tên sản phẩm *</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Tên sản phẩm *
+                </label>
                 <input
                   required
                   type="text"
@@ -1374,7 +1632,9 @@ function ShoppingAssistantPage() {
 
               {/* Price */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Giá tiền (VND) *</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Giá tiền (VND) *
+                </label>
                 <input
                   required
                   type="text"
@@ -1393,7 +1653,9 @@ function ShoppingAssistantPage() {
 
               {/* Category */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Loại danh mục</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Loại danh mục
+                </label>
                 <select
                   value={newPurchase.categoryName}
                   onChange={(e) => setNewPurchase({ ...newPurchase, categoryName: e.target.value })}
@@ -1411,7 +1673,9 @@ function ShoppingAssistantPage() {
 
               {/* Want rating (1-5 stars) */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Độ thèm muốn bốc đồng (1-5 sao)</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+                  Độ thèm muốn bốc đồng (1-5 sao)
+                </label>
                 <div className="flex items-center gap-2">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <button
@@ -1423,22 +1687,26 @@ function ShoppingAssistantPage() {
                       <Star
                         className={cn(
                           "h-6 w-6",
-                          i < newPurchase.rating ? "fill-warning" : "text-muted opacity-45"
+                          i < newPurchase.rating ? "fill-warning" : "text-muted opacity-45",
                         )}
                       />
                     </button>
                   ))}
                   <span className="text-xs font-bold text-muted-foreground ml-2">
-                    {newPurchase.rating === 1 ? "☕ Rất ngẫu hứng" :
-                      newPurchase.rating === 3 ? "🤔 Bình thường" :
-                        "🔥 Khao khát sở hữu"}
+                    {newPurchase.rating === 1
+                      ? "☕ Rất ngẫu hứng"
+                      : newPurchase.rating === 3
+                        ? "🤔 Bình thường"
+                        : "🔥 Khao khát sở hữu"}
                   </span>
                 </div>
               </div>
 
               {/* Link */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Đường dẫn liên kết (Nếu có)</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Đường dẫn liên kết (Nếu có)
+                </label>
                 <input
                   type="url"
                   value={newPurchase.link}
@@ -1450,7 +1718,9 @@ function ShoppingAssistantPage() {
 
               {/* Notes */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Ghi chú suy nghĩ</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Ghi chú suy nghĩ
+                </label>
                 <textarea
                   value={newPurchase.notes}
                   onChange={(e) => setNewPurchase({ ...newPurchase, notes: e.target.value })}
@@ -1501,7 +1771,9 @@ function ShoppingAssistantPage() {
             <form onSubmit={handleAddOrder} className="mt-4 space-y-4">
               {/* Product name */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Tên món hàng online *</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Tên món hàng online *
+                </label>
                 <input
                   required
                   type="text"
@@ -1514,7 +1786,9 @@ function ShoppingAssistantPage() {
 
               {/* Shop Platform */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Nền tảng mua hàng</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Nền tảng mua hàng
+                </label>
                 <select
                   value={newOrder.shopName}
                   onChange={(e) => setNewOrder({ ...newOrder, shopName: e.target.value })}
@@ -1529,7 +1803,9 @@ function ShoppingAssistantPage() {
 
               {/* Price */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Giá tiền thanh toán khi nhận (VND) *</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Giá tiền thanh toán khi nhận (VND) *
+                </label>
                 <input
                   required
                   type="text"
@@ -1548,7 +1824,9 @@ function ShoppingAssistantPage() {
 
               {/* Category */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Danh mục hạch toán</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Danh mục hạch toán
+                </label>
                 <select
                   value={newOrder.categoryName}
                   onChange={(e) => setNewOrder({ ...newOrder, categoryName: e.target.value })}
@@ -1601,20 +1879,30 @@ function ShoppingAssistantPage() {
             </div>
 
             <div className="mt-4 bg-muted/40 p-4 rounded-xl border border-border/60 text-xs">
-              <p className="text-muted-foreground uppercase font-bold text-[10px]">Tóm tắt đơn hàng:</p>
+              <p className="text-muted-foreground uppercase font-bold text-[10px]">
+                Tóm tắt đơn hàng:
+              </p>
               <div className="flex justify-between items-baseline mt-2">
                 <span className="font-bold text-foreground text-sm">{selectedPayOrder.name}</span>
-                <span className="font-mono text-base font-extrabold text-foreground">{formatVND(selectedPayOrder.price)}</span>
+                <span className="font-mono text-base font-extrabold text-foreground">
+                  {formatVND(selectedPayOrder.price)}
+                </span>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Nền tảng mua: {selectedPayOrder.shopName}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Nền tảng mua: {selectedPayOrder.shopName}
+              </p>
             </div>
 
             <div className="mt-4 space-y-4">
               {/* Pick Wallet */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Dùng tiền từ ví nào? *</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Dùng tiền từ ví nào? *
+                </label>
                 {dbWallets.length === 0 ? (
-                  <p className="text-xs text-destructive italic">Chưa tìm thấy ví thanh toán nào trong tài khoản. Hãy tạo một ví trước.</p>
+                  <p className="text-xs text-destructive italic">
+                    Chưa tìm thấy ví thanh toán nào trong tài khoản. Hãy tạo một ví trước.
+                  </p>
                 ) : (
                   <select
                     value={selectedWalletId}
@@ -1632,9 +1920,13 @@ function ShoppingAssistantPage() {
 
               {/* Pick Category */}
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">Hạch toán vào danh mục nào? *</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Hạch toán vào danh mục nào? *
+                </label>
                 {dbCategories.length === 0 ? (
-                  <p className="text-xs text-destructive italic">Chưa tìm thấy danh mục chi tiêu nào trong tài khoản.</p>
+                  <p className="text-xs text-destructive italic">
+                    Chưa tìm thấy danh mục chi tiêu nào trong tài khoản.
+                  </p>
                 ) : (
                   <select
                     value={selectedCategoryId}
