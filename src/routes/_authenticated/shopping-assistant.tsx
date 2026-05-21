@@ -271,30 +271,45 @@ function ShoppingAssistantPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load and initialize data from localStorage + Supabase sync
+  // Load initial data from localStorage and demo mode preference
   useEffect(() => {
-    const savedPurchases = localStorage.getItem("easy_eats_intended_purchases");
-    const savedOrders = localStorage.getItem("easy_eats_pending_orders");
     const savedDemo = localStorage.getItem("easy_eats_shopping_demo");
 
     if (savedDemo !== null) {
       setDemoMode(JSON.parse(savedDemo));
     }
+  }, []);
 
-    if (savedPurchases) {
-      setPurchases(JSON.parse(savedPurchases));
-    } else {
+  // Load data based on demo mode - this effect handles mode switching
+  useEffect(() => {
+    if (demoMode) {
+      // Demo mode: always load DEFAULT data, clear localStorage for demo keys
       setPurchases(DEFAULT_PURCHASES);
-      localStorage.setItem("easy_eats_intended_purchases", JSON.stringify(DEFAULT_PURCHASES));
-    }
-
-    if (savedOrders) {
-      const normalizedOrders = (JSON.parse(savedOrders) as UnpaidOrder[]).map(normalizeSavedOrder);
-      setOrders(normalizedOrders);
-      localStorage.setItem("easy_eats_pending_orders", JSON.stringify(normalizedOrders));
-    } else {
       setOrders(DEFAULT_ORDERS);
+      localStorage.setItem("easy_eats_intended_purchases", JSON.stringify(DEFAULT_PURCHASES));
       localStorage.setItem("easy_eats_pending_orders", JSON.stringify(DEFAULT_ORDERS));
+    } else {
+      // Personal mode: load from localStorage or start empty
+      const savedPurchases = localStorage.getItem("easy_eats_intended_purchases");
+      const savedOrders = localStorage.getItem("easy_eats_pending_orders");
+
+      // Only load if it's NOT demo data - if it's demo data (matches DEFAULT), don't load
+      if (savedPurchases && savedPurchases !== JSON.stringify(DEFAULT_PURCHASES)) {
+        setPurchases(JSON.parse(savedPurchases));
+      } else {
+        setPurchases([]);
+        localStorage.removeItem("easy_eats_intended_purchases");
+      }
+
+      if (savedOrders && savedOrders !== JSON.stringify(DEFAULT_ORDERS)) {
+        const normalizedOrders = (JSON.parse(savedOrders) as UnpaidOrder[]).map(
+          normalizeSavedOrder,
+        );
+        setOrders(normalizedOrders);
+      } else {
+        setOrders([]);
+        localStorage.removeItem("easy_eats_pending_orders");
+      }
     }
 
     // Start multi-device sync with Supabase
@@ -307,6 +322,11 @@ function ShoppingAssistantPage() {
         } = await supabase.auth.getUser();
         if (userError || !user) {
           console.log("[v0] User not authenticated for sync");
+          return;
+        }
+
+        // Skip sync in demo mode
+        if (demoMode) {
           return;
         }
 
@@ -335,6 +355,7 @@ function ShoppingAssistantPage() {
 
           // Ensure data is Array before syncing - prevent malformed metadata from overwriting
           if (Array.isArray(serverPurchases) && serverPurchases.length > 0) {
+            const savedPurchases = localStorage.getItem("easy_eats_intended_purchases");
             const localTs = Math.max(
               ...(JSON.parse(savedPurchases || "[]") as IntendedPurchase[]).map((p) =>
                 new Date(p.createdAt).getTime(),
@@ -355,6 +376,7 @@ function ShoppingAssistantPage() {
           }
 
           if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+            const savedOrders = localStorage.getItem("easy_eats_pending_orders");
             const localTs = Math.max(
               ...(JSON.parse(savedOrders || "[]") as UnpaidOrder[]).map((o) =>
                 new Date(o.createdAt).getTime(),
@@ -392,7 +414,7 @@ function ShoppingAssistantPage() {
         syncTimeoutRef.current = null;
       }
     };
-  }, []);
+  }, [demoMode]);
 
   const savePurchasesState = (updated: IntendedPurchase[]) => {
     setPurchases(updated);
@@ -465,12 +487,17 @@ function ShoppingAssistantPage() {
     setDemoMode(next);
     localStorage.setItem("easy_eats_shopping_demo", JSON.stringify(next));
     if (next) {
-      // Restore defaults
+      // Switching to Demo mode: restore demo defaults
       savePurchasesState(DEFAULT_PURCHASES);
       saveOrdersState(DEFAULT_ORDERS);
       toast.success("Đã bật Dữ liệu mẫu (Demo) cho Trợ lý mua sắm!");
     } else {
-      toast.info("Đã chuyển sang chế độ cá nhân.");
+      // Switching to Personal mode: clear all demo data
+      setPurchases([]);
+      setOrders([]);
+      localStorage.removeItem("easy_eats_intended_purchases");
+      localStorage.removeItem("easy_eats_pending_orders");
+      toast.info("Đã chuyển sang chế độ cá nhân. Dữ liệu mẫu đã được xóa.");
     }
   };
 
