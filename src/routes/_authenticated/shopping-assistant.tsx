@@ -330,23 +330,24 @@ function ShoppingAssistantPage() {
           return;
         }
 
-        // Fetch server purchases metadata
-        // Note: user_shopping_metadata table needs to be created in Supabase
-        const { data: serverData, error: fetchError } = await ((supabase as any).rpc(
-          "get_shopping_metadata",
-          {
-            user_id: user.id,
-          },
-        ) as unknown as Promise<{
-          data: ShoppingMetadata | null;
-          error: null | { code: string };
-        }>);
+        // Fetch server purchases metadata from user_shopping_metadata table
+        const { data: row, error: fetchError } = await (supabase as any)
+          .from("user_shopping_metadata")
+          .select("purchases, orders")
+          .eq("user_id", user.id)
+          .maybeSingle();
 
         if (fetchError) {
-          // RPC doesn't exist yet - will be created when table is set up
-          console.log("[v0] Sync RPC not available, using localStorage only");
+          console.error("[shopping] fetch metadata error", fetchError);
           return;
         }
+
+        const serverData: ShoppingMetadata | null = row
+          ? {
+              purchases: (row.purchases as IntendedPurchase[]) ?? [],
+              orders: (row.orders as UnpaidOrder[]) ?? [],
+            }
+          : null;
 
         if (serverData) {
           // Validate server data is proper Array format before syncing
