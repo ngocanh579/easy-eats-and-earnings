@@ -212,6 +212,8 @@ function ShoppingAssistantPage() {
 
   // Multi-device sync state
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const purchasesSyncRef = useRef<NodeJS.Timeout | null>(null);
+  const ordersSyncRef = useRef<NodeJS.Timeout | null>(null);
 
   // Confetti / Congratulatory State when skipping an impulse buy
   const [savedAmount, setSavedAmount] = useState<number | null>(null);
@@ -330,23 +332,24 @@ function ShoppingAssistantPage() {
           return;
         }
 
-        // Fetch server purchases metadata
-        // Note: user_shopping_metadata table needs to be created in Supabase
-        const { data: serverData, error: fetchError } = await ((supabase as any).rpc(
-          "get_shopping_metadata",
-          {
-            user_id: user.id,
-          },
-        ) as unknown as Promise<{
-          data: ShoppingMetadata | null;
-          error: null | { code: string };
-        }>);
+        // Fetch server purchases metadata from user_shopping_metadata table
+        const { data: row, error: fetchError } = await (supabase as any)
+          .from("user_shopping_metadata")
+          .select("purchases, orders")
+          .eq("user_id", user.id)
+          .maybeSingle();
 
         if (fetchError) {
-          // RPC doesn't exist yet - will be created when table is set up
-          console.log("[v0] Sync RPC not available, using localStorage only");
+          console.error("[shopping] fetch metadata error", fetchError);
           return;
         }
+
+        const serverData: ShoppingMetadata | null = row
+          ? {
+              purchases: (row.purchases as IntendedPurchase[]) ?? [],
+              orders: (row.orders as UnpaidOrder[]) ?? [],
+            }
+          : null;
 
         if (serverData) {
           // Validate server data is proper Array format before syncing
@@ -408,10 +411,17 @@ function ShoppingAssistantPage() {
     syncWithServer();
 
     return () => {
-      // Cleanup debounce timeout on unmount to prevent memory leaks
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = null;
+      }
+      if (purchasesSyncRef.current) {
+        clearTimeout(purchasesSyncRef.current);
+        purchasesSyncRef.current = null;
+      }
+      if (ordersSyncRef.current) {
+        clearTimeout(ordersSyncRef.current);
+        ordersSyncRef.current = null;
       }
     };
   }, [demoMode]);
@@ -421,10 +431,10 @@ function ShoppingAssistantPage() {
     localStorage.setItem("easy_eats_intended_purchases", JSON.stringify(updated));
 
     // Debounce sync to server
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
+    if (purchasesSyncRef.current) {
+      clearTimeout(purchasesSyncRef.current);
     }
-    syncTimeoutRef.current = setTimeout(async () => {
+    purchasesSyncRef.current = setTimeout(async () => {
       try {
         const {
           data: { user },
@@ -438,13 +448,18 @@ function ShoppingAssistantPage() {
           return;
         }
 
-        // Attempt to sync - will fail gracefully if RPC doesn't exist yet
-        await ((supabase as any).rpc("update_shopping_purchases", {
-          purchases_data: updated,
-        }) as unknown as Promise<void>);
+        // Upsert purchases to user_shopping_metadata
+        const { error: upsertError } = await (supabase as any)
+          .from("user_shopping_metadata")
+          .upsert(
+            { user_id: user.id, purchases: updated },
+            { onConflict: "user_id" },
+          );
+        if (upsertError) {
+          console.error("[shopping] sync purchases error", upsertError);
+        }
       } catch (err) {
-        // RPC not available yet - will work once table is set up
-        console.log("[v0] Sync purchases not available, relying on localStorage");
+        console.error("[shopping] sync purchases exception", err);
       }
     }, 1000);
   };
@@ -454,10 +469,10 @@ function ShoppingAssistantPage() {
     localStorage.setItem("easy_eats_pending_orders", JSON.stringify(updated));
 
     // Debounce sync to server
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
+    if (ordersSyncRef.current) {
+      clearTimeout(ordersSyncRef.current);
     }
-    syncTimeoutRef.current = setTimeout(async () => {
+    ordersSyncRef.current = setTimeout(async () => {
       try {
         const {
           data: { user },
@@ -471,13 +486,18 @@ function ShoppingAssistantPage() {
           return;
         }
 
-        // Attempt to sync - will fail gracefully if RPC doesn't exist yet
-        await ((supabase as any).rpc("update_shopping_orders", {
-          orders_data: updated,
-        }) as unknown as Promise<void>);
+        // Upsert orders to user_shopping_metadata
+        const { error: upsertError } = await (supabase as any)
+          .from("user_shopping_metadata")
+          .upsert(
+            { user_id: user.id, orders: updated },
+            { onConflict: "user_id" },
+          );
+        if (upsertError) {
+          console.error("[shopping] sync orders error", upsertError);
+        }
       } catch (err) {
-        // RPC not available yet - will work once table is set up
-        console.log("[v0] Sync orders not available, relying on localStorage");
+        console.error("[shopping] sync orders exception", err);
       }
     }, 1000);
   };
