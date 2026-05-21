@@ -424,10 +424,10 @@ function ShoppingAssistantPage() {
     localStorage.setItem("easy_eats_intended_purchases", JSON.stringify(updated));
 
     // Debounce sync to server
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
+    if (purchasesSyncRef.current) {
+      clearTimeout(purchasesSyncRef.current);
     }
-    syncTimeoutRef.current = setTimeout(async () => {
+    purchasesSyncRef.current = setTimeout(async () => {
       try {
         const {
           data: { user },
