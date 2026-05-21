@@ -296,10 +296,60 @@ const DEFAULT_CATEGORY_MAPPING: Record<string, "needs" | "wants" | "savings"> = 
   "dự phòng": "savings",
   "tích luỹ": "savings",
   "heo đất": "savings",
-  "chứng khoán": "savings",
+  "chứng khoán": "savings",
   vàng: "savings",
   "bảo hiểm": "savings",
 };
+
+// Regex patterns for category classification
+const NEEDS_REGEX =
+  /ăn uống|đi lại|nhà ở|nhà|chung cư|biệt thự|căn hộ|hoá đơn|hóa đơn|điện|nước|điện nước|internet|cước|gas|thuê nhà|phòng|xăng|học phí|y tế|sức khoẻ|sức khỏe|thuốc/i;
+const WANTS_REGEX =
+  /cafe|cà phê|mua sắm|giải trí|du lịch|xem phim|mua đồ|spa|làm đẹp|chơi game|quần áo|giày|mỹ phẩm|tiệc tùng|nhậu/i;
+const SAVINGS_REGEX =
+  /tiết kiệm|đầu tư|quỹ khẩn cấp|dự phòng|tích luỹ|heo đất|chứng khoán|vàng|bảo hiểm/i;
+
+/**
+ * Dynamically classifies a category into needs/wants/savings groups.
+ * Priority order:
+ * 1. User-defined DEFAULT_CATEGORY_MAPPING (highest priority)
+ * 2. category.kind (if "savings" or "debt")
+ * 3. Regex pattern matching
+ * 4. Default to "needs" (no unclassified categories)
+ */
+function classifyCategory(
+  categoryName: string,
+  categoryKind?: "expense" | "income" | "debt" | "savings",
+): "needs" | "wants" | "savings" {
+  const lowerName = categoryName.normalize("NFC").toLowerCase();
+
+  // 1. Check user-defined mapping (highest priority)
+  if (lowerName in DEFAULT_CATEGORY_MAPPING) {
+    return DEFAULT_CATEGORY_MAPPING[lowerName];
+  }
+
+  // 2. Check category.kind
+  if (categoryKind === "savings") {
+    return "savings";
+  }
+  if (categoryKind === "debt") {
+    return "needs";
+  }
+
+  // 3. Check regex patterns
+  if (NEEDS_REGEX.test(lowerName)) {
+    return "needs";
+  }
+  if (WANTS_REGEX.test(lowerName)) {
+    return "wants";
+  }
+  if (SAVINGS_REGEX.test(lowerName)) {
+    return "savings";
+  }
+
+  // 4. Default to "needs" (no unclassified categories)
+  return "needs";
+}
 
 function SmartPlanPage() {
   // ----------------------------------------------------
@@ -445,7 +495,6 @@ function SmartPlanPage() {
     let needsTotal = 0;
     let wantsTotal = 0;
     let savingsTotal = 0;
-    let unclassifiedTotal = 0;
 
     for (const t of realTxs) {
       // Only process transactions of current month
@@ -488,40 +537,21 @@ function SmartPlanPage() {
       // Find category details for expenses
       const cat = realCats.find((c) => c.id === t.category_id);
       if (!cat) {
-        // Fallback: uncategorized expenses go to wants
-        unclassifiedTotal += amt;
-        details["Chi phí Khác"] += amt;
+        // Fallback: uncategorized expenses default to needs
+        const group: "needs" | "wants" | "savings" = "needs";
+        needsTotal += amt;
+        details["Hoá đơn"] += amt;
         continue;
       }
 
       const catName = cat.name;
-      const lowerName = catName.normalize("NFC").toLowerCase();
 
-      // Mapping rules
-      const needsRegex =
-        /ăn uống|đi lại|nhà ở|nhà|chung cư|biệt thự|căn hộ|hoá đơn|hóa đơn|điện|nước|điện nước|internet|cước|gas|thuê nhà|phòng|xăng|học phí|y tế|sức khoẻ|sức khỏe|thuốc/i;
-      const wantsRegex =
-        /cafe|cà phê|mua sắm|giải trí|du lịch|xem phim|mua đồ|spa|làm đẹp|chơi game|quần áo|giày|mỹ phẩm|tiệc tùng|nhậu/i;
-      const savingsRegex =
-        /tiết kiệm|đầu tư|quỹ khẩn cấp|dự phòng|tích luỹ|heo đất|chứng khoán|vàng|bảo hiểm/i;
-
-      let group: "needs" | "wants" | "savings" | null = null;
-      if (lowerName in DEFAULT_CATEGORY_MAPPING) {
-        group = DEFAULT_CATEGORY_MAPPING[lowerName];
-      }
-
-      if (!group) {
-        if (needsRegex.test(lowerName)) {
-          group = "needs";
-        } else if (wantsRegex.test(lowerName)) {
-          group = "wants";
-        } else if (savingsRegex.test(lowerName) || cat.kind === "savings") {
-          group = "savings";
-        }
-      }
+      // Use dynamic classification function
+      const group = classifyCategory(catName, cat.kind);
 
       if (group === "needs") {
         needsTotal += amt;
+        const lowerName = catName.normalize("NFC").toLowerCase();
         if (lowerName.includes("ăn") || lowerName.includes("food")) {
           details["Ăn uống"] += amt;
         } else if (
@@ -547,6 +577,7 @@ function SmartPlanPage() {
         }
       } else if (group === "wants") {
         wantsTotal += amt;
+        const lowerName = catName.normalize("NFC").toLowerCase();
         if (
           lowerName.includes("cafe") ||
           lowerName.includes("cà phê") ||
@@ -572,6 +603,7 @@ function SmartPlanPage() {
         }
       } else if (group === "savings") {
         savingsTotal += amt;
+        const lowerName = catName.normalize("NFC").toLowerCase();
         if (
           lowerName.includes("dự phòng") ||
           lowerName.includes("khẩn cấp") ||
@@ -587,10 +619,6 @@ function SmartPlanPage() {
         } else {
           details["Tiết kiệm"] += amt;
         }
-      } else {
-        // Fallback for completely unclassified categories goes to unclassifiedTotal
-        unclassifiedTotal += amt;
-        details["Chi phí Khác"] += amt;
       }
     }
 
@@ -599,7 +627,6 @@ function SmartPlanPage() {
       needsTotal,
       wantsTotal,
       savingsTotal,
-      unclassifiedTotal,
       details,
     };
   }, [realTxs, realCats, currentMonthKey]);
@@ -658,7 +685,6 @@ function SmartPlanPage() {
         needsTotal,
         wantsTotal,
         savingsTotal,
-        unclassifiedTotal: 0,
         details,
       };
     }
@@ -667,7 +693,6 @@ function SmartPlanPage() {
       needsTotal: classifiedRealData.needsTotal,
       wantsTotal: classifiedRealData.wantsTotal,
       savingsTotal: classifiedRealData.savingsTotal,
-      unclassifiedTotal: classifiedRealData.unclassifiedTotal,
       details: classifiedRealData.details,
     };
   }, [demoMode, classifiedRealData]);
@@ -1052,23 +1077,16 @@ function SmartPlanPage() {
             <span className="text-muted-foreground font-medium">Đang liên kết nguồn:</span>
             <span
               className={cn(
-                "px-2 py-0.5 rounded-full font-bold uppercase text-[9px] border transition-all duration-300",
+                "px-2.5 py-1 rounded-full font-semibold",
                 incomeSource === "actual"
-                  ? "bg-success/10 text-success border-success/20"
-                  : "bg-primary/10 text-primary border-primary/20",
+                  ? "bg-success/10 text-success"
+                  : "bg-secondary/10 text-secondary",
               )}
             >
-              {incomeSource === "actual" ? "1. Thực tế" : "2. Dự kiến"} ({formatVND(activeIncome)})
+              {incomeSource === "actual" ? "Dữ liệu thực" : "Tùy chỉnh"}
             </span>
           </div>
         </div>
-
-        {!demoMode && activeData.unclassifiedTotal > 0 && (
-          <div className="rounded-2xl bg-warning/10 px-4 py-3 text-xs font-medium text-warning-foreground">
-            {formatVND(activeData.unclassifiedTotal)} chưa được đưa vào 3 nhóm vì giao dịch chưa có
-            danh mục rõ ràng hoặc không thuộc chi tiêu thường xuyên.
-          </div>
-        )}
 
         <div className="grid gap-4 md:grid-cols-3 lg:gap-6">
           {/* NEEDS CARD */}
