@@ -332,7 +332,7 @@ function ShoppingAssistantPage() {
 
         // Fetch server purchases metadata
         // Note: user_shopping_metadata table needs to be created in Supabase
-        const { data: serverData, error: fetchError } = await (supabase.rpc(
+        const { data: serverData, error: fetchError } = await ((supabase as any).rpc(
           "get_shopping_metadata",
           {
             user_id: user.id,
@@ -439,7 +439,7 @@ function ShoppingAssistantPage() {
         }
 
         // Attempt to sync - will fail gracefully if RPC doesn't exist yet
-        await (supabase.rpc("update_shopping_purchases", {
+        await ((supabase as any).rpc("update_shopping_purchases", {
           purchases_data: updated,
         }) as unknown as Promise<void>);
       } catch (err) {
@@ -472,7 +472,7 @@ function ShoppingAssistantPage() {
         }
 
         // Attempt to sync - will fail gracefully if RPC doesn't exist yet
-        await (supabase.rpc("update_shopping_orders", {
+        await ((supabase as any).rpc("update_shopping_orders", {
           orders_data: updated,
         }) as unknown as Promise<void>);
       } catch (err) {
@@ -570,8 +570,11 @@ function ShoppingAssistantPage() {
   // ----------------------------------------------------
   const payOrderMutation = useMutation({
     mutationFn: async ({ order, walletId, categoryId }: { order: UnpaidOrder; walletId: string; categoryId: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
       // 1. Create real transaction entry
       const { data: txData, error: txError } = await supabase.from("transactions").insert({
+        user_id: user.id,
         wallet_id: walletId,
         category_id: categoryId,
         kind: "expense",
