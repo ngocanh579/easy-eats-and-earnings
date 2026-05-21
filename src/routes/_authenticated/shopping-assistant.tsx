@@ -212,6 +212,8 @@ function ShoppingAssistantPage() {
 
   // Multi-device sync state
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const purchasesSyncRef = useRef<NodeJS.Timeout | null>(null);
+  const ordersSyncRef = useRef<NodeJS.Timeout | null>(null);
 
   // Confetti / Congratulatory State when skipping an impulse buy
   const [savedAmount, setSavedAmount] = useState<number | null>(null);
