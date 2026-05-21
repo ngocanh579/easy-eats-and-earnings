@@ -4,12 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Sparkles,
   TrendingUp,
-  TrendingDown,
   PiggyBank,
   CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
-  Info,
   DollarSign,
   Coffee,
   ShoppingBag,
@@ -20,13 +16,10 @@ import {
   Car,
   FileText,
   ShieldAlert,
-  GraduationCap,
   Calendar,
-  Calculator,
   Compass,
-  ArrowRight,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND, parseAmountShortcut } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -63,46 +56,250 @@ const DEMO_INCOME = 22000000; // 22 Million VND
 const DEMO_TXS = [
   // --- Needs (Thiết yếu - Target: 11,000,000) ---
   // Ăn uống
-  { note: "Mua thức ăn tuần 1", category_name: "Ăn uống", kind: "expense", amount: 850000, occurred_at: "2026-05-02" },
-  { note: "Ăn trưa văn phòng", category_name: "Ăn uống", kind: "expense", amount: 150000, occurred_at: "2026-05-05" },
-  { note: "Đi chợ siêu thị Co.opmart", category_name: "Ăn uống", kind: "expense", amount: 1200000, occurred_at: "2026-05-10" },
-  { note: "Ăn tối cùng gia đình", category_name: "Ăn uống", kind: "expense", amount: 650000, occurred_at: "2026-05-12" },
+  {
+    note: "Mua thức ăn tuần 1",
+    category_name: "Ăn uống",
+    kind: "expense",
+    amount: 850000,
+    occurred_at: "2026-05-02",
+  },
+  {
+    note: "Ăn trưa văn phòng",
+    category_name: "Ăn uống",
+    kind: "expense",
+    amount: 150000,
+    occurred_at: "2026-05-05",
+  },
+  {
+    note: "Đi chợ siêu thị Co.opmart",
+    category_name: "Ăn uống",
+    kind: "expense",
+    amount: 1200000,
+    occurred_at: "2026-05-10",
+  },
+  {
+    note: "Ăn tối cùng gia đình",
+    category_name: "Ăn uống",
+    kind: "expense",
+    amount: 650000,
+    occurred_at: "2026-05-12",
+  },
   // Nhà ở
-  { note: "Tiền thuê nhà tháng 5", category_name: "Nhà ở", kind: "expense", amount: 4800000, occurred_at: "2026-05-01" },
-  { note: "Sửa vòi nước bồn tắm", category_name: "Nhà ở", kind: "expense", amount: 200000, occurred_at: "2026-05-08" },
+  {
+    note: "Tiền thuê nhà tháng 5",
+    category_name: "Nhà ở",
+    kind: "expense",
+    amount: 4800000,
+    occurred_at: "2026-05-01",
+  },
+  {
+    note: "Sửa vòi nước bồn tắm",
+    category_name: "Nhà ở",
+    kind: "expense",
+    amount: 200000,
+    occurred_at: "2026-05-08",
+  },
   // Đi lại
-  { note: "Đổ xăng xe máy", category_name: "Đi lại", kind: "expense", amount: 90000, occurred_at: "2026-05-03" },
-  { note: "Đặt Grab đi công tác", category_name: "Đi lại", kind: "expense", amount: 180000, occurred_at: "2026-05-07" },
-  { note: "Vé xe buýt tháng", category_name: "Đi lại", kind: "expense", amount: 100000, occurred_at: "2026-05-09" },
+  {
+    note: "Đổ xăng xe máy",
+    category_name: "Đi lại",
+    kind: "expense",
+    amount: 90000,
+    occurred_at: "2026-05-03",
+  },
+  {
+    note: "Đặt Grab đi công tác",
+    category_name: "Đi lại",
+    kind: "expense",
+    amount: 180000,
+    occurred_at: "2026-05-07",
+  },
+  {
+    note: "Vé xe buýt tháng",
+    category_name: "Đi lại",
+    kind: "expense",
+    amount: 100000,
+    occurred_at: "2026-05-09",
+  },
   // Hóa đơn
-  { note: "Tiền điện sinh hoạt", category_name: "Hoá đơn", kind: "expense", amount: 1150000, occurred_at: "2026-05-05" },
-  { note: "Tiền nước", category_name: "Hoá đơn", kind: "expense", amount: 120000, occurred_at: "2026-05-05" },
-  { note: "Cước Internet cáp quang", category_name: "Hoá đơn", kind: "expense", amount: 250000, occurred_at: "2026-05-06" },
+  {
+    note: "Tiền điện sinh hoạt",
+    category_name: "Hoá đơn",
+    kind: "expense",
+    amount: 1150000,
+    occurred_at: "2026-05-05",
+  },
+  {
+    note: "Tiền nước",
+    category_name: "Hoá đơn",
+    kind: "expense",
+    amount: 120000,
+    occurred_at: "2026-05-05",
+  },
+  {
+    note: "Cước Internet cáp quang",
+    category_name: "Hoá đơn",
+    kind: "expense",
+    amount: 250000,
+    occurred_at: "2026-05-06",
+  },
 
   // --- Wants (Mong muốn - Target: 6,600,000) ---
   // Cafe
-  { note: "Họp nhóm Highland Coffee", category_name: "Cafe", kind: "expense", amount: 120000, occurred_at: "2026-05-03" },
-  { note: "Cà phê sữa đá sáng", category_name: "Cafe", kind: "expense", amount: 450000, occurred_at: "2026-05-15" }, // Tổng nhiều lần
+  {
+    note: "Họp nhóm Highland Coffee",
+    category_name: "Cafe",
+    kind: "expense",
+    amount: 120000,
+    occurred_at: "2026-05-03",
+  },
+  {
+    note: "Cà phê sữa đá sáng",
+    category_name: "Cafe",
+    kind: "expense",
+    amount: 450000,
+    occurred_at: "2026-05-15",
+  }, // Tổng nhiều lần
   // Mua sắm
-  { note: "Mua áo thun Polo", category_name: "Mua sắm", kind: "expense", amount: 350000, occurred_at: "2026-05-04" },
-  { note: "Giày Sneaker Adidas", category_name: "Mua sắm", kind: "expense", amount: 2200000, occurred_at: "2026-05-11" },
-  { note: "Mỹ phẩm skincare", category_name: "Mua sắm", kind: "expense", amount: 950000, occurred_at: "2026-05-14" },
+  {
+    note: "Mua áo thun Polo",
+    category_name: "Mua sắm",
+    kind: "expense",
+    amount: 350000,
+    occurred_at: "2026-05-04",
+  },
+  {
+    note: "Giày Sneaker Adidas",
+    category_name: "Mua sắm",
+    kind: "expense",
+    amount: 2200000,
+    occurred_at: "2026-05-11",
+  },
+  {
+    note: "Mỹ phẩm skincare",
+    category_name: "Mua sắm",
+    kind: "expense",
+    amount: 950000,
+    occurred_at: "2026-05-14",
+  },
   // Giải trí
-  { note: "Vé xem phim CGV & Bắp nước", category_name: "Giải trí", kind: "expense", amount: 260000, occurred_at: "2026-05-09" },
-  { note: "Đăng ký Spotify Premium", category_name: "Giải trí", kind: "expense", amount: 59000, occurred_at: "2026-05-10" },
-  { note: "Nạp thẻ game giải trí", category_name: "Giải trí", kind: "expense", amount: 200000, occurred_at: "2026-05-13" },
+  {
+    note: "Vé xem phim CGV & Bắp nước",
+    category_name: "Giải trí",
+    kind: "expense",
+    amount: 260000,
+    occurred_at: "2026-05-09",
+  },
+  {
+    note: "Đăng ký Spotify Premium",
+    category_name: "Giải trí",
+    kind: "expense",
+    amount: 59000,
+    occurred_at: "2026-05-10",
+  },
+  {
+    note: "Nạp thẻ game giải trí",
+    category_name: "Giải trí",
+    kind: "expense",
+    amount: 200000,
+    occurred_at: "2026-05-13",
+  },
   // Du lịch
-  { note: "Vé máy bay đi Đà Nẵng hè", category_name: "Du lịch", kind: "expense", amount: 2300000, occurred_at: "2026-05-12" },
-  { note: "Đặt phòng Homestay Đà Nẵng", category_name: "Du lịch", kind: "expense", amount: 1200000, occurred_at: "2026-05-13" },
+  {
+    note: "Vé máy bay đi Đà Nẵng hè",
+    category_name: "Du lịch",
+    kind: "expense",
+    amount: 2300000,
+    occurred_at: "2026-05-12",
+  },
+  {
+    note: "Đặt phòng Homestay Đà Nẵng",
+    category_name: "Du lịch",
+    kind: "expense",
+    amount: 1200000,
+    occurred_at: "2026-05-13",
+  },
 
   // --- Savings (Tiết kiệm - Target: 4,400,000) ---
   // Quỹ dự phòng
-  { note: "Trích quỹ khẩn cấp định kỳ", category_name: "Quỹ dự phòng", kind: "savings", amount: 2000000, occurred_at: "2026-05-02" },
+  {
+    note: "Trích quỹ khẩn cấp định kỳ",
+    category_name: "Quỹ dự phòng",
+    kind: "savings",
+    amount: 2000000,
+    occurred_at: "2026-05-02",
+  },
   // Tiết kiệm
-  { note: "Gửi tiết kiệm tích luỹ app ngân hàng", category_name: "Tiết kiệm", kind: "savings", amount: 1500000, occurred_at: "2026-05-05" },
+  {
+    note: "Gửi tiết kiệm tích luỹ app ngân hàng",
+    category_name: "Tiết kiệm",
+    kind: "savings",
+    amount: 1500000,
+    occurred_at: "2026-05-05",
+  },
   // Đầu tư
-  { note: "Mua chứng chỉ quỹ VinaCapital", category_name: "Đầu tư", kind: "savings", amount: 1000000, occurred_at: "2026-05-10" },
+  {
+    note: "Mua chứng chỉ quỹ VinaCapital",
+    category_name: "Đầu tư",
+    kind: "savings",
+    amount: 1000000,
+    occurred_at: "2026-05-10",
+  },
 ];
+
+const DEFAULT_CATEGORY_MAPPING: Record<string, "needs" | "wants" | "savings"> = {
+  "ăn uống": "needs",
+  "đi lại": "needs",
+  "nhà ở": "needs",
+  "tiền thuê nhà": "needs",
+  "tiền nhà": "needs",
+  "điện nước": "needs",
+  internet: "needs",
+  cước: "needs",
+  gas: "needs",
+  phòng: "needs",
+  "chung cư": "needs",
+  "biệt thự": "needs",
+  "căn hộ": "needs",
+  "hoá đơn": "needs",
+  "hóa đơn": "needs",
+  điện: "needs",
+  nước: "needs",
+  xăng: "needs",
+  "học phí": "needs",
+  "y tế": "needs",
+  "sức khoẻ": "needs",
+  "sức khỏe": "needs",
+  thuốc: "needs",
+
+  cafe: "wants",
+  "cà phê": "wants",
+  coffee: "wants",
+  "mua sắm": "wants",
+  shopping: "wants",
+  "giải trí": "wants",
+  "du lịch": "wants",
+  "xem phim": "wants",
+  game: "wants",
+  spotify: "wants",
+  "chơi game": "wants",
+  "quần áo": "wants",
+  giày: "wants",
+  "mỹ phẩm": "wants",
+  "tiệc tùng": "wants",
+  nhậu: "wants",
+
+  "tiết kiệm": "savings",
+  "đầu tư": "savings",
+  "quỹ dự phòng": "savings",
+  "quỹ khẩn cấp": "savings",
+  "dự phòng": "savings",
+  "tích luỹ": "savings",
+  "heo đất": "savings",
+  "chứng khoán": "savings",
+  vàng: "savings",
+  "bảo hiểm": "savings",
+};
 
 function SmartPlanPage() {
   // ----------------------------------------------------
@@ -143,7 +340,7 @@ function SmartPlanPage() {
         income: parseFloat(inc) || 22000000,
         incomeSource: source,
         demoMode: demo,
-      })
+      }),
     );
   };
 
@@ -204,10 +401,7 @@ function SmartPlanPage() {
   const catsQuery = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .order("created_at");
+      const { data, error } = await supabase.from("categories").select("*").order("created_at");
       if (error) throw error;
       return (data ?? []) as Category[];
     },
@@ -228,7 +422,7 @@ function SmartPlanPage() {
   // Classify real transactions into 50/30/20 groups
   const classifiedRealData = useMemo(() => {
     let incomeSum = 0;
-    
+
     // Subcategory details tracking
     const details = {
       // Needs
@@ -237,7 +431,7 @@ function SmartPlanPage() {
       "Đi lại": 0,
       "Hoá đơn": 0,
       // Wants
-      "Cafe": 0,
+      Cafe: 0,
       "Mua sắm": 0,
       "Giải trí": 0,
       "Du lịch": 0,
@@ -269,13 +463,17 @@ function SmartPlanPage() {
       // Handle actual savings
       if (t.kind === "savings") {
         savingsTotal += amt;
-        
+
         // Match specific subcategories
         const cat = realCats.find((c) => c.id === t.category_id);
         const name = cat?.name.toLowerCase() || "";
         if (name.includes("khẩn cấp") || name.includes("dự phòng") || name.includes("emergency")) {
           details["Quỹ dự phòng"] += amt;
-        } else if (name.includes("đầu tư") || name.includes("chứng khoán") || name.includes("invest")) {
+        } else if (
+          name.includes("đầu tư") ||
+          name.includes("chứng khoán") ||
+          name.includes("invest")
+        ) {
           details["Đầu tư"] += amt;
         } else {
           details["Tiết kiệm"] += amt;
@@ -297,33 +495,101 @@ function SmartPlanPage() {
       }
 
       const catName = cat.name;
-      const lowerName = catName.toLowerCase();
+      const lowerName = catName.normalize("NFC").toLowerCase();
 
-      // smart checks
-      const needsRegex = /ăn uống|đi lại|nhà ở|hoá đơn|hóa đơn|điện|nước|internet|cước|gas|thuê nhà|phòng|xăng|học phí|y tế|sức khoẻ|sức khỏe|thuốc/i;
-      const wantsRegex = /cafe|cà phê|mua sắm|giải trí|du lịch|xem phim|mua đồ|spa|làm đẹp|chơi game|quần áo|giày|mỹ phẩm|tiệc tùng|nhậu/i;
-      const savingsRegex = /tiết kiệm|đầu tư|quỹ khẩn cấp|dự phòng|tích luỹ|heo đất|chứng khoán|vàng|bảo hiểm/i;
+      // Mapping rules
+      const needsRegex =
+        /ăn uống|đi lại|nhà ở|nhà|chung cư|biệt thự|căn hộ|hoá đơn|hóa đơn|điện|nước|điện nước|internet|cước|gas|thuê nhà|phòng|xăng|học phí|y tế|sức khoẻ|sức khỏe|thuốc/i;
+      const wantsRegex =
+        /cafe|cà phê|mua sắm|giải trí|du lịch|xem phim|mua đồ|spa|làm đẹp|chơi game|quần áo|giày|mỹ phẩm|tiệc tùng|nhậu/i;
+      const savingsRegex =
+        /tiết kiệm|đầu tư|quỹ khẩn cấp|dự phòng|tích luỹ|heo đất|chứng khoán|vàng|bảo hiểm/i;
 
-      if (needsRegex.test(lowerName)) {
+      let group: "needs" | "wants" | "savings" | null = null;
+      if (lowerName in DEFAULT_CATEGORY_MAPPING) {
+        group = DEFAULT_CATEGORY_MAPPING[lowerName];
+      }
+
+      if (!group) {
+        if (needsRegex.test(lowerName)) {
+          group = "needs";
+        } else if (wantsRegex.test(lowerName)) {
+          group = "wants";
+        } else if (savingsRegex.test(lowerName) || cat.kind === "savings") {
+          group = "savings";
+        }
+      }
+
+      if (group === "needs") {
         needsTotal += amt;
-        if (lowerName.includes("ăn") || lowerName.includes("food")) details["Ăn uống"] += amt;
-        else if (lowerName.includes("ở") || lowerName.includes("thuê") || lowerName.includes("nhà") || lowerName.includes("rent")) details["Nhà ở"] += amt;
-        else if (lowerName.includes("đi") || lowerName.includes("xăng") || lowerName.includes("grab") || lowerName.includes("bus") || lowerName.includes("traffic")) details["Đi lại"] += amt;
-        else details["Hoá đơn"] += amt;
-      } else if (wantsRegex.test(lowerName)) {
-        unclassifiedTotal += amt;
-        if (lowerName.includes("cafe") || lowerName.includes("cà phê") || lowerName.includes("coffee")) details["Cafe"] += amt;
-        else if (lowerName.includes("sắm") || lowerName.includes("đồ") || lowerName.includes("quần") || lowerName.includes("shopping")) details["Mua sắm"] += amt;
-        else if (lowerName.includes("trí") || lowerName.includes("phim") || lowerName.includes("game") || lowerName.includes("spotify")) details["Giải trí"] += amt;
-        else details["Du lịch"] += amt;
-      } else if (savingsRegex.test(lowerName) || cat.kind === "savings") {
-        savingsTotal += amt;
-        if (lowerName.includes("dự phòng") || lowerName.includes("khẩn cấp") || lowerName.includes("emergency")) details["Quỹ dự phòng"] += amt;
-        else if (lowerName.includes("đầu tư") || lowerName.includes("chứng") || lowerName.includes("invest")) details["Đầu tư"] += amt;
-        else details["Tiết kiệm"] += amt;
-      } else {
-        // Fallback for expenses is Wants
+        if (lowerName.includes("ăn") || lowerName.includes("food")) {
+          details["Ăn uống"] += amt;
+        } else if (
+          lowerName.includes("ở") ||
+          lowerName.includes("thuê") ||
+          lowerName.includes("nhà") ||
+          lowerName.includes("rent") ||
+          lowerName.includes("chung cư") ||
+          lowerName.includes("căn hộ") ||
+          lowerName.includes("phòng")
+        ) {
+          details["Nhà ở"] += amt;
+        } else if (
+          lowerName.includes("đi") ||
+          lowerName.includes("xăng") ||
+          lowerName.includes("grab") ||
+          lowerName.includes("bus") ||
+          lowerName.includes("traffic")
+        ) {
+          details["Đi lại"] += amt;
+        } else {
+          details["Hoá đơn"] += amt;
+        }
+      } else if (group === "wants") {
         wantsTotal += amt;
+        if (
+          lowerName.includes("cafe") ||
+          lowerName.includes("cà phê") ||
+          lowerName.includes("coffee")
+        ) {
+          details["Cafe"] += amt;
+        } else if (
+          lowerName.includes("sắm") ||
+          lowerName.includes("đồ") ||
+          lowerName.includes("quần") ||
+          lowerName.includes("shopping")
+        ) {
+          details["Mua sắm"] += amt;
+        } else if (
+          lowerName.includes("trí") ||
+          lowerName.includes("phim") ||
+          lowerName.includes("game") ||
+          lowerName.includes("spotify")
+        ) {
+          details["Giải trí"] += amt;
+        } else {
+          details["Du lịch"] += amt;
+        }
+      } else if (group === "savings") {
+        savingsTotal += amt;
+        if (
+          lowerName.includes("dự phòng") ||
+          lowerName.includes("khẩn cấp") ||
+          lowerName.includes("emergency")
+        ) {
+          details["Quỹ dự phòng"] += amt;
+        } else if (
+          lowerName.includes("đầu tư") ||
+          lowerName.includes("chứng") ||
+          lowerName.includes("invest")
+        ) {
+          details["Đầu tư"] += amt;
+        } else {
+          details["Tiết kiệm"] += amt;
+        }
+      } else {
+        // Fallback for completely unclassified categories goes to unclassifiedTotal
+        unclassifiedTotal += amt;
         details["Chi phí Khác"] += amt;
       }
     }
@@ -354,9 +620,18 @@ function SmartPlanPage() {
   const activeData = useMemo(() => {
     if (demoMode) {
       const details = {
-        "Ăn uống": 0, "Nhà ở": 0, "Đi lại": 0, "Hoá đơn": 0,
-        "Cafe": 0, "Mua sắm": 0, "Giải trí": 0, "Du lịch": 0, "Chi phí Khác": 0,
-        "Quỹ dự phòng": 0, "Tiết kiệm": 0, "Đầu tư": 0,
+        "Ăn uống": 0,
+        "Nhà ở": 0,
+        "Đi lại": 0,
+        "Hoá đơn": 0,
+        Cafe: 0,
+        "Mua sắm": 0,
+        "Giải trí": 0,
+        "Du lịch": 0,
+        "Chi phí Khác": 0,
+        "Quỹ dự phòng": 0,
+        "Tiết kiệm": 0,
+        "Đầu tư": 0,
       };
       let needsTotal = 0;
       let wantsTotal = 0;
@@ -436,9 +711,7 @@ function SmartPlanPage() {
   const actualChartData = useMemo(() => {
     const totalActual = activeData.needsTotal + activeData.wantsTotal + activeData.savingsTotal;
     if (totalActual === 0) {
-      return [
-        { name: "Chưa chi tiêu", value: 1, color: "var(--color-muted)" }
-      ];
+      return [{ name: "Chưa chi tiêu", value: 1, color: "var(--color-muted)" }];
     }
     return [
       { name: "Thiết yếu", value: activeData.needsTotal, color: "var(--color-primary)" },
@@ -446,134 +719,6 @@ function SmartPlanPage() {
       { name: "Tiết kiệm", value: activeData.savingsTotal, color: "var(--color-success)" },
     ];
   }, [activeData]);
-
-  // ----------------------------------------------------
-  // FORECASTING & WARNING GENERATOR
-  // ----------------------------------------------------
-  const forecasts = useMemo(() => {
-    const list: { type: "danger" | "warning" | "info" | "success"; text: string; subText?: string }[] = [];
-
-    // Daily velocities
-    const dailyNeedsVel = activeData.needsTotal / currentDay;
-    const dailyWantsVel = activeData.wantsTotal / currentDay;
-    const dailyExpensesVel = (activeData.needsTotal + activeData.wantsTotal) / currentDay;
-    
-    // Projected end of month amounts
-    const projectedNeeds = dailyNeedsVel * daysInMonth;
-    const projectedWants = dailyWantsVel * daysInMonth;
-    const projectedExpenses = dailyExpensesVel * daysInMonth;
-    const projectedSavings = activeData.savingsTotal; // Savings doesn't necessarily scale linearly but let's assume current saved is what we have
-
-    // 1. Food specific check (Ăn uống)
-    const foodSpent = activeData.details["Ăn uống"];
-    const suggestedFoodLimit = targetNeeds * 0.4; // Suggest 40% of Needs is for Food
-    const dailyFoodVel = foodSpent / currentDay;
-    const projectedFood = dailyFoodVel * daysInMonth;
-    if (projectedFood > suggestedFoodLimit * 1.15) {
-      const overPct = Math.round(((projectedFood - suggestedFoodLimit) / suggestedFoodLimit) * 100);
-      list.push({
-        type: "warning",
-        text: `Bạn đang chi tiêu Ăn uống cao hơn mức đề xuất hợp lý ${overPct}%`,
-        subText: `Dự kiến cả tháng chi ${formatVND(projectedFood)} (Hạn mức đề xuất cho ăn uống là ${formatVND(suggestedFoodLimit)}).`,
-      });
-    }
-
-    // 2. Budget deficit warning (Âm tiền cuối tháng)
-    if (projectedExpenses > activeIncome) {
-      const deficit = projectedExpenses - activeIncome;
-      list.push({
-        type: "danger",
-        text: `Nếu tiếp tục chi tiêu hiện tại, cuối tháng bạn có thể âm ${formatVND(deficit)}!`,
-        subText: `Tổng dự kiến chi tiêu (${formatVND(projectedExpenses)}) đang vượt tổng thu nhập (${formatVND(activeIncome)}).`,
-      });
-    }
-
-    // 3. Savings deficit warning (Thiếu hụt tiết kiệm)
-    if (activeData.savingsTotal < targetSavings) {
-      const missing = targetSavings - activeData.savingsTotal;
-      list.push({
-        type: "info",
-        text: `Bạn còn thiếu ${formatVND(missing)} để đạt mục tiêu tiết kiệm tối thiểu 20%`,
-        subText: `Hiện tại đã trích lũy ${formatVND(activeData.savingsTotal)} trên tổng mục tiêu ${formatVND(targetSavings)}.`,
-      });
-    } else {
-      list.push({
-        type: "success",
-        text: `Xuất sắc! Bạn đã hoàn thành 100% mục tiêu tiết kiệm tích lũy 20% cho tháng này!`,
-        subText: `Đã gửi tích lũy và đầu tư ${formatVND(activeData.savingsTotal)} (Mục tiêu tối thiểu ${formatVND(targetSavings)}).`,
-      });
-    }
-
-    return list;
-  }, [activeData, activeIncome, currentDay, daysInMonth, targetNeeds, targetSavings]);
-
-  // ----------------------------------------------------
-  // SMART FINANCIAL ADVICE ENGINE
-  // ----------------------------------------------------
-  const smartSuggestions = useMemo(() => {
-    const list: string[] = [];
-
-    // Rule 1: Low Income advice
-    if (activeIncome < 8000000) {
-      list.push("Thu nhập của bạn đang ở mức cơ bản (< 8 triệu). Hãy tạm thời hoãn các khoản chi tiêu cho 'Mong muốn' (Wants) xuống dưới 15% để ưu tiên tối đa xây dựng 'Quỹ khẩn cấp' (Emergency Fund) 3 tháng chi tiêu trước.");
-    } else if (activeIncome >= 25000000) {
-      list.push("Thu nhập của bạn ở mức tốt (> 25 triệu). Ngoài việc đảm bảo 20% tiết kiệm thông thường, bạn nên cân nhắc trích thêm 5-10% từ nhóm Mong muốn để đẩy mạnh các kênh đầu tư dài hạn như Chứng chỉ quỹ hoặc Cổ phiếu tích sản.");
-    }
-
-    // Rule 2: Overspending in Wants
-    const wantsPct = (activeData.wantsTotal / activeIncome) * 100;
-    if (wantsPct > 35) {
-      list.push(`Tỷ trọng chi tiêu 'Mong muốn' của bạn đang khá cao (${wantsPct.toFixed(1)}% so với đề xuất 30%). Hãy thực hiện thử thách '3 ngày không mua sắm tự do' hoặc chuyển sang pha cà phê tại nhà thay vì ngồi quán ngoại tuần tới.`);
-    }
-
-    // Rule 3: High rent / Housing
-    const rentSpent = activeData.details["Nhà ở"];
-    const rentPct = (rentSpent / activeIncome) * 100;
-    if (rentPct > 25) {
-      list.push(`Chi phí Nhà ở (Thuê nhà, dịch vụ) đang chiếm tới ${rentPct.toFixed(1)}% thu nhập của bạn. Theo chuyên gia, mức an toàn tối đa cho nhà ở là 20-25%. Bạn nên tìm cách chia sẻ tiền phòng hoặc tìm giải pháp tiết kiệm điện nước để giảm bớt gánh nặng.`);
-    }
-
-    // Rule 4: General positive nudge
-    if (activeData.needsTotal <= targetNeeds && activeData.wantsTotal <= targetWants && activeData.savingsTotal >= targetSavings) {
-      list.push("Chúc mừng bạn! Mọi chỉ số phân bổ tài chính của bạn đang cực kỳ lý tưởng theo chuẩn 50/30/20. Đây là thói quen của các nhà quản lý tài chính thông minh xuất sắc.");
-    } else {
-      list.push("Hãy áp dụng nguyên tắc: 'Pay yourself first' - Trích ngay lập tức 20% thu nhập để gửi tiết kiệm/đầu tư ngay khi nhận lương, phần còn lại mới chia vào các ví chi tiêu hàng ngày.");
-    }
-
-    return list;
-  }, [activeIncome, activeData, targetNeeds, targetWants, targetSavings]);
-
-  // ----------------------------------------------------
-  // PERSONALIZED AUTO MONTH RECOMMENDATIONS
-  // ----------------------------------------------------
-  const nextMonthRecommendation = useMemo(() => {
-    // If we have actual spending, we nudge them slowly
-    const currentNeedsPct = (activeData.needsTotal / activeIncome) * 100;
-    const currentWantsPct = (activeData.wantsTotal / activeIncome) * 100;
-    const currentSavingsPct = (activeData.savingsTotal / activeIncome) * 100;
-
-    let suggestedNeedsPct = 50;
-    let suggestedWantsPct = 30;
-    let suggestedSavingsPct = 20;
-
-    // Nudging formula: if Needs is 60%, suggest 55% for next month
-    if (currentNeedsPct > 55) {
-      suggestedNeedsPct = Math.round(currentNeedsPct - 5);
-      suggestedWantsPct = 30;
-      suggestedSavingsPct = 100 - suggestedNeedsPct - suggestedWantsPct;
-    } else if (currentWantsPct > 35) {
-      suggestedWantsPct = Math.round(currentWantsPct - 5);
-      suggestedNeedsPct = 50;
-      suggestedSavingsPct = 100 - suggestedNeedsPct - suggestedWantsPct;
-    }
-
-    return {
-      needs: { pct: suggestedNeedsPct, amt: activeIncome * (suggestedNeedsPct / 100) },
-      wants: { pct: suggestedWantsPct, amt: activeIncome * (suggestedWantsPct / 100) },
-      savings: { pct: suggestedSavingsPct, amt: activeIncome * (suggestedSavingsPct / 100) },
-      hasDeviated: currentNeedsPct > 55 || currentWantsPct > 35,
-    };
-  }, [activeData, activeIncome]);
 
   return (
     <div className="space-y-5 animate-fade-in pb-8 sm:space-y-6">
@@ -601,7 +746,7 @@ function SmartPlanPage() {
               "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 md:flex-none",
               demoMode
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Compass className="h-3.5 w-3.5" />
@@ -619,13 +764,14 @@ function SmartPlanPage() {
               Thiết lập thu nhập hàng tháng (Chuẩn 50/30/20)
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Hệ thống hỗ trợ song song 2 nguồn thu nhập. Click chọn thẻ tương ứng để áp dụng phân bổ kế hoạch:
+              Hệ thống hỗ trợ song song 2 nguồn thu nhập. Click chọn thẻ tương ứng để áp dụng phân
+              bổ kế hoạch:
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 mt-4">
             {/* Card 1: Thu nhập thực tế */}
-            <div 
+            <div
               onClick={() => {
                 setIncomeSource("actual");
                 setDemoMode(false);
@@ -634,21 +780,25 @@ function SmartPlanPage() {
               }}
               className={cn(
                 "rounded-[1.35rem] border p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group select-none active:scale-[0.99] sm:hover:scale-[1.015]",
-                incomeSource === "actual" 
-                  ? "border-success bg-success/5 ring-1 ring-success/20" 
-                  : "border-border/60 bg-muted/20 hover:border-success/40"
+                incomeSource === "actual"
+                  ? "border-success bg-success/5 ring-1 ring-success/20"
+                  : "border-border/60 bg-muted/20 hover:border-success/40",
               )}
             >
               {incomeSource === "actual" && (
                 <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-success" />
               )}
-              
+
               <div>
                 <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "grid h-7 w-7 place-items-center rounded-lg text-xs",
-                    incomeSource === "actual" ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"
-                  )}>
+                  <div
+                    className={cn(
+                      "grid h-7 w-7 place-items-center rounded-lg text-xs",
+                      incomeSource === "actual"
+                        ? "bg-success/20 text-success"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
                   <span className="font-display text-xs font-bold text-foreground">
@@ -667,22 +817,22 @@ function SmartPlanPage() {
               </div>
 
               <div className="mt-4 pt-2.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
-                <span>
-                  {demoMode ? "Demo: Lương + Freelance" : "Từ các ví/tài khoản thực"}
-                </span>
-                <span className={cn(
-                  "font-bold text-[9px] px-2 py-0.5 rounded border uppercase tracking-wider",
-                  incomeSource === "actual" 
-                    ? "bg-success text-success-foreground border-success" 
-                    : "bg-muted text-muted-foreground border-border/80 group-hover:text-success"
-                )}>
+                <span>{demoMode ? "Demo: Lương + Freelance" : "Từ các ví/tài khoản thực"}</span>
+                <span
+                  className={cn(
+                    "font-bold text-[9px] px-2 py-0.5 rounded border uppercase tracking-wider",
+                    incomeSource === "actual"
+                      ? "bg-success text-success-foreground border-success"
+                      : "bg-muted text-muted-foreground border-border/80 group-hover:text-success",
+                  )}
+                >
                   {incomeSource === "actual" ? "Đang dùng" : "Chọn dùng"}
                 </span>
               </div>
             </div>
 
             {/* Card 2: Thu nhập dự kiến tự nhập */}
-            <div 
+            <div
               onClick={() => {
                 if (incomeSource !== "custom") {
                   setIncomeSource("custom");
@@ -692,9 +842,9 @@ function SmartPlanPage() {
               }}
               className={cn(
                 "rounded-[1.35rem] border p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group select-none active:scale-[0.99] sm:hover:scale-[1.015]",
-                incomeSource === "custom" 
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/20" 
-                  : "border-border/60 bg-muted/20 hover:border-primary/40"
+                incomeSource === "custom"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                  : "border-border/60 bg-muted/20 hover:border-primary/40",
               )}
             >
               {incomeSource === "custom" && (
@@ -703,10 +853,14 @@ function SmartPlanPage() {
 
               <div>
                 <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "grid h-7 w-7 place-items-center rounded-lg text-xs",
-                    incomeSource === "custom" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                  )}>
+                  <div
+                    className={cn(
+                      "grid h-7 w-7 place-items-center rounded-lg text-xs",
+                      incomeSource === "custom"
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
                     <Sparkles className="h-4 w-4" />
                   </div>
                   <span className="font-display text-xs font-bold text-foreground">
@@ -738,12 +892,14 @@ function SmartPlanPage() {
 
               <div className="mt-3 pt-2.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
                 <span>Ước tính theo nhu cầu</span>
-                <span className={cn(
-                  "font-bold text-[9px] px-2 py-0.5 rounded border uppercase tracking-wider",
-                  incomeSource === "custom" 
-                    ? "bg-primary text-primary-foreground border-primary" 
-                    : "bg-muted text-muted-foreground border-border/80 group-hover:text-primary"
-                )}>
+                <span
+                  className={cn(
+                    "font-bold text-[9px] px-2 py-0.5 rounded border uppercase tracking-wider",
+                    incomeSource === "custom"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-muted-foreground border-border/80 group-hover:text-primary",
+                  )}
+                >
                   {incomeSource === "custom" ? "Đang dùng" : "Chọn dùng"}
                 </span>
               </div>
@@ -761,10 +917,14 @@ function SmartPlanPage() {
                 {formatVND(remainingSafeToSpend)}
               </h2>
             </div>
-            <span className={cn(
-              "grid h-8 w-8 place-items-center rounded-lg text-xs font-bold",
-              remainingSafeToSpend >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-            )}>
+            <span
+              className={cn(
+                "grid h-8 w-8 place-items-center rounded-lg text-xs font-bold",
+                remainingSafeToSpend >= 0
+                  ? "bg-success/10 text-success"
+                  : "bg-destructive/10 text-destructive",
+              )}
+            >
               {remainingSafeToSpend >= 0 ? "OK" : "OVER"}
             </span>
           </div>
@@ -782,10 +942,10 @@ function SmartPlanPage() {
         </div>
       </div>
 
-      {/* Bento Grid Row 2: Charts and Suggestions */}
+      {/* Bento Grid Row 2: Charts */}
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Recharts Pie Chart comparing Target vs Actual */}
-        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 lg:col-span-2">
+        <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5 lg:col-span-3">
           <h3 className="font-display text-base font-semibold flex items-center gap-2">
             <Calendar className="h-4.5 w-4.5 text-primary" />
             Cơ cấu ngân sách 50/30/20
@@ -819,9 +979,18 @@ function SmartPlanPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex gap-4 text-[10px] font-semibold">
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" />Thiết yếu 50%</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-warning" />Mong muốn 30%</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-success" />Tiết kiệm 20%</span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-primary" />
+                  Thiết yếu 50%
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-warning" />
+                  Mong muốn 30%
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-success" />
+                  Tiết kiệm 20%
+                </span>
               </div>
             </div>
 
@@ -849,114 +1018,46 @@ function SmartPlanPage() {
                 </PieChart>
               </ResponsiveContainer>
               {activeData.needsTotal + activeData.wantsTotal + activeData.savingsTotal === 0 ? (
-                <div className="text-[10px] text-muted-foreground font-semibold">Chưa phát sinh giao dịch</div>
+                <div className="text-[10px] text-muted-foreground font-semibold">
+                  Chưa phát sinh giao dịch
+                </div>
               ) : (
                 <div className="flex gap-4 text-[10px] font-semibold">
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" />Thiết yếu</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-warning" />Mong muốn</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-success" />Tiết kiệm</span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    Thiết yếu
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-warning" />
+                    Mong muốn
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    Tiết kiệm
+                  </span>
                 </div>
               )}
             </div>
           </div>
-        </div>
-
-        {/* Smart Suggestions Panel */}
-        <div className="rounded-[1.5rem] bg-card p-5 shadow-[var(--shadow-soft)] flex flex-col justify-between">
-          <div>
-            <h3 className="font-display text-base font-semibold flex items-center gap-2">
-              <Sparkles className="h-4.5 w-4.5 text-warning" />
-              Gợi ý Thông minh
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Lời khuyên tài chính cá nhân hóa từ hệ thống phân tích thói quen.
-            </p>
-
-            <ul className="mt-4 space-y-3.5">
-              {smartSuggestions.map((advice, i) => (
-                <li key={i} className="flex gap-3 text-xs text-muted-foreground leading-relaxed align-top">
-                  <span className="mt-0.5 text-warning flex-shrink-0">
-                    <Info className="h-4 w-4" />
-                  </span>
-                  <span>{advice}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mt-4 border-t border-border/60 pt-3">
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Nguyên tắc cốt lõi:</span>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              "Hãy tiết kiệm trước khi chi tiêu, chứ không phải chi tiêu rồi mới tiết kiệm phần còn lại."
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Forecasting Alerts Panel (Dự đoán và cảnh báo) */}
-      <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="font-display text-base font-semibold flex items-center gap-2">
-              <TrendingUp className="h-4.5 w-4.5 text-destructive" />
-              Dự báo tài chính cuối tháng & Cảnh báo sớm
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Hệ thống dựa trên thói quen hiện tại để dự phóng ngân sách cuối tháng.
-            </p>
-          </div>
-          <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg flex items-center gap-1">
-            Ngày trôi qua: {currentDay}/{daysInMonth}
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {forecasts.map((fc, i) => {
-            const tone = {
-              danger: "bg-destructive/10 text-destructive border-destructive/20",
-              warning: "bg-warning/10 text-warning-foreground border-warning/20",
-              info: "bg-primary/10 text-primary border-primary/20",
-              success: "bg-success/10 text-success border-success/20",
-            }[fc.type];
-
-            const icon = {
-              danger: <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />,
-              warning: <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />,
-              info: <Info className="h-5 w-5 text-primary flex-shrink-0" />,
-              success: <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />,
-            }[fc.type];
-
-            return (
-              <div
-                key={i}
-                className={cn(
-                  "rounded-xl border p-4 flex gap-3 transition-all duration-200 hover:scale-[1.01]",
-                  tone
-                )}
-              >
-                {icon}
-                <div className="min-w-0">
-                  <h4 className="text-xs font-bold leading-tight truncate-2-lines">{fc.text}</h4>
-                  {fc.subText && <p className="text-[10px] opacity-80 mt-1 font-medium leading-relaxed">{fc.subText}</p>}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
 
       {/* Main Groups Details Dashboard */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h3 className="font-display text-base font-semibold">Phân tích chi tiết 3 nhóm chi tiêu</h3>
+          <h3 className="font-display text-base font-semibold">
+            Phân tích chi tiết 3 nhóm chi tiêu
+          </h3>
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground font-medium">Đang liên kết nguồn:</span>
-            <span className={cn(
-              "px-2 py-0.5 rounded-full font-bold uppercase text-[9px] border transition-all duration-300",
-              incomeSource === "actual" 
-                ? "bg-success/10 text-success border-success/20" 
-                : "bg-primary/10 text-primary border-primary/20"
-            )}>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full font-bold uppercase text-[9px] border transition-all duration-300",
+                incomeSource === "actual"
+                  ? "bg-success/10 text-success border-success/20"
+                  : "bg-primary/10 text-primary border-primary/20",
+              )}
+            >
               {incomeSource === "actual" ? "1. Thực tế" : "2. Dự kiến"} ({formatVND(activeIncome)})
             </span>
           </div>
@@ -964,7 +1065,8 @@ function SmartPlanPage() {
 
         {!demoMode && activeData.unclassifiedTotal > 0 && (
           <div className="rounded-2xl bg-warning/10 px-4 py-3 text-xs font-medium text-warning-foreground">
-            {formatVND(activeData.unclassifiedTotal)} chưa được đưa vào 3 nhóm vì giao dịch chưa có danh mục rõ ràng hoặc không thuộc chi tiêu thường xuyên.
+            {formatVND(activeData.unclassifiedTotal)} chưa được đưa vào 3 nhóm vì giao dịch chưa có
+            danh mục rõ ràng hoặc không thuộc chi tiêu thường xuyên.
           </div>
         )}
 
@@ -988,9 +1090,11 @@ function SmartPlanPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-bold">
                   <span>Đã chi tiêu</span>
-                  <span className={cn(
-                    activeData.needsTotal > targetNeeds ? "text-destructive" : "text-primary"
-                  )}>
+                  <span
+                    className={cn(
+                      activeData.needsTotal > targetNeeds ? "text-destructive" : "text-primary",
+                    )}
+                  >
                     {((activeData.needsTotal / targetNeeds) * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -998,23 +1102,29 @@ function SmartPlanPage() {
                   <div
                     className={cn(
                       "h-full rounded-full transition-all duration-500",
-                      activeData.needsTotal > targetNeeds ? "bg-destructive" : "bg-primary"
+                      activeData.needsTotal > targetNeeds ? "bg-destructive" : "bg-primary",
                     )}
-                    style={{ width: `${Math.min((activeData.needsTotal / targetNeeds) * 100, 100)}%` }}
+                    style={{
+                      width: `${Math.min((activeData.needsTotal / targetNeeds) * 100, 100)}%`,
+                    }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                   <span>{formatVND(activeData.needsTotal)}</span>
                   <span>
-                    {remainingNeeds >= 0 ? `Còn lại: ${formatVND(remainingNeeds)}` : `Vượt: ${formatVND(Math.abs(remainingNeeds))}`}
+                    {remainingNeeds >= 0
+                      ? `Còn lại: ${formatVND(remainingNeeds)}`
+                      : `Vượt: ${formatVND(Math.abs(remainingNeeds))}`}
                   </span>
                 </div>
               </div>
 
               {/* Sub-category list */}
               <div className="mt-6 space-y-3.5 border-t border-border/60 pt-4">
-                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Danh mục cụ thể:</h4>
-                
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Danh mục cụ thể:
+                </h4>
+
                 <div className="space-y-2.5">
                   <SubcategoryProgressItem
                     icon={<Utensils className="h-3.5 w-3.5" />}
@@ -1064,9 +1174,13 @@ function SmartPlanPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-bold">
                   <span>Đã chi tiêu</span>
-                  <span className={cn(
-                    activeData.wantsTotal > targetWants ? "text-destructive" : "text-warning-foreground"
-                  )}>
+                  <span
+                    className={cn(
+                      activeData.wantsTotal > targetWants
+                        ? "text-destructive"
+                        : "text-warning-foreground",
+                    )}
+                  >
                     {((activeData.wantsTotal / targetWants) * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -1074,23 +1188,29 @@ function SmartPlanPage() {
                   <div
                     className={cn(
                       "h-full rounded-full transition-all duration-500",
-                      activeData.wantsTotal > targetWants ? "bg-destructive" : "bg-warning"
+                      activeData.wantsTotal > targetWants ? "bg-destructive" : "bg-warning",
                     )}
-                    style={{ width: `${Math.min((activeData.wantsTotal / targetWants) * 100, 100)}%` }}
+                    style={{
+                      width: `${Math.min((activeData.wantsTotal / targetWants) * 100, 100)}%`,
+                    }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                   <span>{formatVND(activeData.wantsTotal)}</span>
                   <span>
-                    {remainingWants >= 0 ? `Còn lại: ${formatVND(remainingWants)}` : `Vượt: ${formatVND(Math.abs(remainingWants))}`}
+                    {remainingWants >= 0
+                      ? `Còn lại: ${formatVND(remainingWants)}`
+                      : `Vượt: ${formatVND(Math.abs(remainingWants))}`}
                   </span>
                 </div>
               </div>
 
               {/* Sub-category list */}
               <div className="mt-6 space-y-3.5 border-t border-border/60 pt-4">
-                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Danh mục cụ thể:</h4>
-                
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Danh mục cụ thể:
+                </h4>
+
                 <div className="space-y-2.5">
                   <SubcategoryProgressItem
                     icon={<Coffee className="h-3.5 w-3.5" />}
@@ -1147,21 +1267,27 @@ function SmartPlanPage() {
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500 bg-success"
-                    style={{ width: `${Math.min((activeData.savingsTotal / targetSavings) * 100, 100)}%` }}
+                    style={{
+                      width: `${Math.min((activeData.savingsTotal / targetSavings) * 100, 100)}%`,
+                    }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                   <span>{formatVND(activeData.savingsTotal)}</span>
                   <span>
-                    {activeData.savingsTotal >= targetSavings ? "Đạt mục tiêu 🎉" : `Còn thiếu: ${formatVND(targetSavings - activeData.savingsTotal)}`}
+                    {activeData.savingsTotal >= targetSavings
+                      ? "Đạt mục tiêu 🎉"
+                      : `Còn thiếu: ${formatVND(targetSavings - activeData.savingsTotal)}`}
                   </span>
                 </div>
               </div>
 
               {/* Sub-category list */}
               <div className="mt-6 space-y-3.5 border-t border-border/60 pt-4">
-                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Danh mục cụ thể:</h4>
-                
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Danh mục cụ thể:
+                </h4>
+
                 <div className="space-y-2.5">
                   <SubcategoryProgressItem
                     icon={<ShieldAlert className="h-3.5 w-3.5" />}
@@ -1186,65 +1312,6 @@ function SmartPlanPage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Personalized Next Month Recommendations */}
-      <div className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-soft)] sm:p-5">
-        <h3 className="font-display text-base font-semibold flex items-center gap-2">
-          <Compass className="h-4.5 w-4.5 text-primary" />
-          Đề xuất ngân sách tháng sau tự động
-        </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Tối ưu hạn mức cho các nhóm dựa trên thói quen và phản hồi thực tế.
-        </p>
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          {/* Rec 1 */}
-          <div className="rounded-2xl p-4 bg-muted/45">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Nhu cầu thiết yếu</span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="font-display text-xl font-bold text-primary">{nextMonthRecommendation.needs.pct}%</span>
-              <span className="text-xs text-muted-foreground">thu nhập</span>
-            </div>
-            <p className="text-xs font-semibold text-foreground mt-1.5">
-              Hạn mức đề xuất: {formatVND(nextMonthRecommendation.needs.amt)}
-            </p>
-          </div>
-
-          {/* Rec 2 */}
-          <div className="rounded-2xl p-4 bg-muted/45">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Mong muốn cá nhân</span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="font-display text-xl font-bold text-warning-foreground">{nextMonthRecommendation.wants.pct}%</span>
-              <span className="text-xs text-muted-foreground">thu nhập</span>
-            </div>
-            <p className="text-xs font-semibold text-foreground mt-1.5">
-              Hạn mức đề xuất: {formatVND(nextMonthRecommendation.wants.amt)}
-            </p>
-          </div>
-
-          {/* Rec 3 */}
-          <div className="rounded-2xl p-4 bg-muted/45">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Tiết kiệm tích lũy</span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="font-display text-xl font-bold text-success">{nextMonthRecommendation.savings.pct}%</span>
-              <span className="text-xs text-muted-foreground">thu nhập</span>
-            </div>
-            <p className="text-xs font-semibold text-foreground mt-1.5">
-              Hạn mức đề xuất: {formatVND(nextMonthRecommendation.savings.amt)}
-            </p>
-          </div>
-        </div>
-
-        {nextMonthRecommendation.hasDeviated && (
-          <div className="mt-4 flex gap-2.5 items-start bg-primary/5 p-3.5 rounded-xl border border-primary/10">
-            <Sparkles className="h-4.5 w-4.5 text-primary mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              <strong>Gợi ý thích ứng thông minh:</strong> Hệ thống nhận thấy bạn có xu hướng chi tiêu lệch chuẩn trong tháng này. 
-              Chúng tôi đã tự động điều chỉnh phân bổ tháng tiếp theo để giúp bạn thích ứng từ từ mà không tạo áp lực quá lớn cho chi tiêu sinh hoạt.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1285,7 +1352,7 @@ function SubcategoryProgressItem({
         <div
           className={cn(
             "h-full rounded-full transition-all duration-300",
-            isOver ? "bg-destructive" : "bg-foreground/20"
+            isOver ? "bg-destructive" : "bg-foreground/20",
           )}
           style={{ width: `${pct}%` }}
         />
