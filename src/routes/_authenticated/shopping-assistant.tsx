@@ -439,13 +439,18 @@ function ShoppingAssistantPage() {
           return;
         }
 
-        // Attempt to sync - will fail gracefully if RPC doesn't exist yet
-        await ((supabase as any).rpc("update_shopping_purchases", {
-          purchases_data: updated,
-        }) as unknown as Promise<void>);
+        // Upsert purchases to user_shopping_metadata
+        const { error: upsertError } = await (supabase as any)
+          .from("user_shopping_metadata")
+          .upsert(
+            { user_id: user.id, purchases: updated },
+            { onConflict: "user_id" },
+          );
+        if (upsertError) {
+          console.error("[shopping] sync purchases error", upsertError);
+        }
       } catch (err) {
-        // RPC not available yet - will work once table is set up
-        console.log("[v0] Sync purchases not available, relying on localStorage");
+        console.error("[shopping] sync purchases exception", err);
       }
     }, 1000);
   };
