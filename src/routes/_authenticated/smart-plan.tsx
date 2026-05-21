@@ -634,14 +634,28 @@ function SmartPlanPage() {
   // ----------------------------------------------------
   // CONSOLIDATE DATA BASED ON MODE (REAL vs DEMO)
   // ----------------------------------------------------
+  // Consolidate active income with proper fallback chain
   const activeIncome = useMemo(() => {
     if (incomeSource === "actual") {
       if (demoMode) {
         return 22000000; // Demo actual total income is exactly 22.000.000đ
       }
-      return classifiedRealData.actualIncome || parseFloat(incomeInput) || 22000000;
+      // Actual income priority: real data > user input > fallback default
+      const actualValue = classifiedRealData.actualIncome;
+      if (actualValue && actualValue > 0) {
+        return actualValue;
+      }
+      // Fallback to custom input if no actual income data
+      const customValue = parseFloat(incomeInput);
+      if (customValue && customValue > 0) {
+        return customValue;
+      }
+      // Default fallback
+      return 22000000;
     }
-    return parseFloat(incomeInput) || 22000000;
+    // Custom/Tùy chỉnh mode: use input value or default
+    const customValue = parseFloat(incomeInput);
+    return customValue > 0 ? customValue : 22000000;
   }, [demoMode, incomeSource, incomeInput, classifiedRealData.actualIncome]);
 
   const activeData = useMemo(() => {
@@ -670,13 +684,51 @@ function SmartPlanPage() {
           savingsTotal += amt;
           details[t.category_name as keyof typeof details] += amt;
         } else {
-          // Check categories
-          if (["Ăn uống", "Nhà ở", "Đi lại", "Hoá đơn"].includes(t.category_name)) {
+          // Use dynamic classification instead of hardcoded logic
+          const group = classifyCategory(t.category_name, t.kind);
+
+          if (group === "needs") {
             needsTotal += amt;
-            details[t.category_name as keyof typeof details] += amt;
-          } else {
+            const lowerName = t.category_name.toLowerCase();
+            if (lowerName.includes("ăn") || lowerName.includes("food")) {
+              details["Ăn uống"] += amt;
+            } else if (
+              lowerName.includes("ở") ||
+              lowerName.includes("nhà") ||
+              lowerName.includes("rent")
+            ) {
+              details["Nhà ở"] += amt;
+            } else if (
+              lowerName.includes("đi") ||
+              lowerName.includes("xăng") ||
+              lowerName.includes("grab")
+            ) {
+              details["Đi lại"] += amt;
+            } else {
+              details["Hoá đơn"] += amt;
+            }
+          } else if (group === "wants") {
             wantsTotal += amt;
-            details[t.category_name as keyof typeof details] += amt;
+            const lowerName = t.category_name.toLowerCase();
+            if (lowerName.includes("cafe") || lowerName.includes("cà phê")) {
+              details["Cafe"] += amt;
+            } else if (lowerName.includes("sắm") || lowerName.includes("đồ")) {
+              details["Mua sắm"] += amt;
+            } else if (lowerName.includes("trí") || lowerName.includes("phim")) {
+              details["Giải trí"] += amt;
+            } else {
+              details["Du lịch"] += amt;
+            }
+          } else if (group === "savings") {
+            savingsTotal += amt;
+            const lowerName = t.category_name.toLowerCase();
+            if (lowerName.includes("dự phòng") || lowerName.includes("khẩn cấp")) {
+              details["Quỹ dự phòng"] += amt;
+            } else if (lowerName.includes("đầu tư") || lowerName.includes("chứng")) {
+              details["Đầu tư"] += amt;
+            } else {
+              details["Tiết kiệm"] += amt;
+            }
           }
         }
       }
