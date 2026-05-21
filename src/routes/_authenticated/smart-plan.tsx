@@ -685,7 +685,7 @@ function SmartPlanPage() {
           details[t.category_name as keyof typeof details] += amt;
         } else {
           // Use dynamic classification instead of hardcoded logic
-          const group = classifyCategory(t.category_name, t.kind);
+          const group = classifyCategory(t.category_name, t.kind as "expense" | "income" | "savings" | "debt");
 
           if (group === "needs") {
             needsTotal += amt;
