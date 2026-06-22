@@ -111,8 +111,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets-balance"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã cập nhật giao dịch");
       onClose();
     },

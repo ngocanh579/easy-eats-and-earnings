@@ -65,7 +65,17 @@ function WalletsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("wallet_id, kind, amount");
+        .select("wallet_id, kind, amount, category_id");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const cats = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id,name");
       if (error) throw error;
       return data;
     },
@@ -73,13 +83,37 @@ function WalletsPage() {
 
   const balances = useMemo(() => {
     const map = new Map<string, number>();
-    for (const w of wallets.data ?? []) map.set(w.id, Number(w.initial_balance));
-    for (const t of txs.data ?? []) {
-      const sign = t.kind === "income" ? 1 : t.kind === "expense" ? -1 : 0;
-      map.set(t.wallet_id, (map.get(t.wallet_id) ?? 0) + sign * Number(t.amount));
+    const catMap = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
+    
+    // Initialize with initial balance
+    for (const w of wallets.data ?? []) {
+      map.set(w.id, Number(w.initial_balance));
     }
+    
+    // Apply all transactions using single calculation logic
+    for (const t of txs.data ?? []) {
+      const cur = map.get(t.wallet_id) ?? 0;
+      const amt = Number(t.amount);
+      let delta = 0;
+      
+      if (t.kind === "income") {
+        delta = amt;
+      } else if (t.kind === "expense") {
+        delta = -amt;
+      } else if (t.kind === "savings") {
+        delta = -amt; // negative saves, positive withdraws
+      } else if (t.kind === "debt") {
+        // "Cho nợ" = lending = money leaves = -amount
+        // "Khoản nợ" = borrowing = money enters = +amount
+        const catName = (t.category_id && catMap.get(t.category_id)) ?? "Khoản nợ";
+        delta = catName === "Cho nợ" ? -amt : amt;
+      }
+      
+      map.set(t.wallet_id, cur + delta);
+    }
+    
     return map;
-  }, [wallets.data, txs.data]);
+  }, [wallets.data, txs.data, cats.data]);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -98,6 +132,7 @@ function WalletsPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Đã tạo ví");
       setOpen(false);
       setName("");

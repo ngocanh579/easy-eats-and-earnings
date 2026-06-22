@@ -147,6 +147,33 @@ export type Database = {
           },
         ]
       }
+      user_shopping_metadata: {
+        Row: {
+          created_at: string
+          id: string
+          orders: Json
+          purchases: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          orders?: Json
+          purchases?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          orders?: Json
+          purchases?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           color: string | null
