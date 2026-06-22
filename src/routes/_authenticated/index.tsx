@@ -86,7 +86,10 @@ function DashboardPage() {
   const { wallets, txs, cats } = useDashboardData();
   const [hidden, setHidden] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
-  const [selectedKindForView, setSelectedKindForView] = useState<"income" | "expense" | "debt" | "savings" | null>(null);
+  const [selectedView, setSelectedView] = useState<
+    | { kind: "income" | "expense" | "debt" | "savings"; categoryId?: string | null }
+    | null
+  >(null);
 
   const qc = useQueryClient();
   const del = useMutation({
