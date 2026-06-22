@@ -91,7 +91,7 @@ function CategoriesPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
       toast.success("Đã xoá giao dịch");
     },
     onError: (e: Error) => toast.error(e.message),

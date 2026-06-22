@@ -95,7 +95,7 @@ export function QuickAdd() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
       toast.success("Đã thêm giao dịch");
       setText("");
       setOpen(false);

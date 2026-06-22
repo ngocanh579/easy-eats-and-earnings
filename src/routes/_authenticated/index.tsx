@@ -88,46 +88,21 @@ function DashboardPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã xoá giao dịch");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Single source of truth for wallet balance calculation
-  // All pages use this EXACT same logic to ensure consistency
+  // Read wallet balances directly from database (single source of truth)
+  // Wallet balance is now updated by database triggers when transactions change
   const balanceByWalletId = useMemo(() => {
     const map = new Map<string, number>();
-    const catMap = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
-
-    // Initialize with initial balance
     for (const w of wallets.data ?? []) {
-      map.set(w.id, Number(w.initial_balance));
+      map.set(w.id, Number((w as any).current_balance ?? 0));
     }
-
-    // Apply all transactions using single calculation logic
-    for (const t of txs.data ?? []) {
-      const cur = map.get(t.wallet_id) ?? 0;
-      const amt = Number(t.amount);
-      let delta = 0;
-
-      if (t.kind === "income") {
-        delta = amt;
-      } else if (t.kind === "expense") {
-        delta = -amt;
-      } else if (t.kind === "savings") {
-        delta = -amt; // negative saves, positive withdraws
-      } else if (t.kind === "debt") {
-        // "Cho nợ" = lending = money leaves = -amount
-        // "Khoản nợ" = borrowing = money enters = +amount
-        const catName = (t.category_id && catMap.get(t.category_id)) ?? "Khoản nợ";
-        delta = catName === "Cho nợ" ? -amt : amt;
-      }
-
-      map.set(t.wallet_id, cur + delta);
-    }
-
     return map;
-  }, [wallets.data, txs.data, cats.data]);
+  }, [wallets.data]);
 
   // Quỹ tiết kiệm = tổng các giao dịch kind="savings" (gửi vào dương, rút ra âm)
   const savingsPot = useMemo(
