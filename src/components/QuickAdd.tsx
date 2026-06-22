@@ -60,7 +60,12 @@ export function QuickAdd() {
     },
   });
 
-  const filteredCats = categories.filter((c) => c.kind === kind);
+  // For debt/savings, only allow selecting child categories (parents are aggregate-only)
+  const filteredCats = categories.filter((c) => {
+    if (c.kind !== kind) return false;
+    if (kind === "debt" || kind === "savings") return c.parent_id !== null;
+    return true;
+  });
   const parsed = parseQuickAdd(text);
 
   const create = useMutation({
