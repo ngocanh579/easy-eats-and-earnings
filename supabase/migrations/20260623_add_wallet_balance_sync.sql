@@ -17,15 +17,28 @@ SET search_path = public
 AS $$
 DECLARE
   delta NUMERIC(18,2) := 0;
+  cat_name TEXT;
 BEGIN
-  -- Only update wallet balance for income and expense transactions
-  -- IMPORTANT: Savings and Debt are kept separate and do NOT affect wallet balance
+  -- Update wallet balance for income, expense, and debt transactions
+  -- IMPORTANT: Savings do NOT affect wallet balance
   IF NEW.kind = 'income' THEN
     delta := NEW.amount;
   ELSIF NEW.kind = 'expense' THEN
     delta := -NEW.amount;
+  ELSIF NEW.kind = 'debt' THEN
+    -- Get category name to determine debt type
+    SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = NEW.category_id;
+    IF cat_name = 'Cho nợ' THEN
+      -- Lending: money goes out of wallet
+      delta := -NEW.amount;
+    ELSE
+      -- Borrowing/Repayment: handled by amount sign
+      delta := NEW.amount;
+    END IF;
+  ELSIF NEW.kind = 'savings' THEN
+    -- Savings do NOT affect wallet balance
+    delta := 0;
   ELSE
-    -- Savings, Debt, and other types do NOT affect wallet balance
     delta := 0;
   END IF;
 
@@ -48,21 +61,36 @@ AS $$
 DECLARE
   old_delta NUMERIC(18,2) := 0;
   new_delta NUMERIC(18,2) := 0;
+  cat_name TEXT;
 BEGIN
-  -- Calculate old delta (only for income, expense - not savings/debt)
+  -- Calculate old delta (for income, expense, and debt)
   IF OLD.kind = 'income' THEN
     old_delta := OLD.amount;
   ELSIF OLD.kind = 'expense' THEN
     old_delta := -OLD.amount;
+  ELSIF OLD.kind = 'debt' THEN
+    SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = OLD.category_id;
+    IF cat_name = 'Cho nợ' THEN
+      old_delta := -OLD.amount;
+    ELSE
+      old_delta := OLD.amount;
+    END IF;
   ELSE
     old_delta := 0;
   END IF;
 
-  -- Calculate new delta (only for income, expense - not savings/debt)
+  -- Calculate new delta (for income, expense, and debt)
   IF NEW.kind = 'income' THEN
     new_delta := NEW.amount;
   ELSIF NEW.kind = 'expense' THEN
     new_delta := -NEW.amount;
+  ELSIF NEW.kind = 'debt' THEN
+    SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = NEW.category_id;
+    IF cat_name = 'Cho nợ' THEN
+      new_delta := -NEW.amount;
+    ELSE
+      new_delta := NEW.amount;
+    END IF;
   ELSE
     new_delta := 0;
   END IF;
@@ -96,12 +124,20 @@ SET search_path = public
 AS $$
 DECLARE
   delta NUMERIC(18,2) := 0;
+  cat_name TEXT;
 BEGIN
-  -- Calculate the delta to remove (only for income, expense - not savings/debt)
+  -- Calculate the delta to remove (for income, expense, and debt)
   IF OLD.kind = 'income' THEN
     delta := OLD.amount;
   ELSIF OLD.kind = 'expense' THEN
     delta := -OLD.amount;
+  ELSIF OLD.kind = 'debt' THEN
+    SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = OLD.category_id;
+    IF cat_name = 'Cho nợ' THEN
+      delta := -OLD.amount;
+    ELSE
+      delta := OLD.amount;
+    END IF;
   ELSE
     delta := 0;
   END IF;
