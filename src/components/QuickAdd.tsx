@@ -151,6 +151,13 @@ export function QuickAdd() {
                   key={k}
                   onClick={() => {
                     setKind(k);
+                    if (k === "debt" || k === "savings") {
+                      const catsForKind = categories.filter((c) => c.kind === k && c.parent_id !== null);
+                      if (catsForKind.length > 0) {
+                        setCategoryId(catsForKind[0].id);
+                        return;
+                      }
+                    }
                     setCategoryId("");
                   }}
                   className={cn(
@@ -184,11 +191,25 @@ export function QuickAdd() {
                 className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">Không danh mục</option>
-                {filteredCats.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.icon} {c.name}
-                  </option>
-                ))}
+                {filteredCats.filter(c => !c.parent_id).map((parent) => {
+                  const children = filteredCats.filter(c => c.parent_id === parent.id);
+                  if (children.length > 0) {
+                    return (
+                      <optgroup key={parent.id} label={`${parent.icon} ${parent.name}`}>
+                        {children.map(child => (
+                          <option key={child.id} value={child.id}>
+                            {child.icon} {child.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  }
+                  return (
+                    <option key={parent.id} value={parent.id}>
+                      {parent.icon} {parent.name}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

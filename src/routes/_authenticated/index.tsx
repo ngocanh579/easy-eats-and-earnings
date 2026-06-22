@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -87,8 +87,85 @@ function DashboardPage() {
   const [hidden, setHidden] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
   const [selectedKindForView, setSelectedKindForView] = useState<"income" | "expense" | "debt" | "savings" | null>(null);
+  const [selectedCategoryForView, setSelectedCategoryForView] = useState<string | null>(null);
 
   const qc = useQueryClient();
+
+  useEffect(() => {
+    async function migrate() {
+      if (localStorage.getItem("migration_v3_completed") === "true") return;
+
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const uid = u.user.id;
+
+      const { data: existingCats } = await supabase.from("categories").select("*");
+      if (!existingCats) return;
+
+      const groups = [
+        { name: "Khoản nợ", kind: "debt", icon: "📥", parent_id: null },
+        { name: "Cho nợ", kind: "debt", icon: "📤", parent_id: null },
+        { name: "Tiết kiệm hộ", kind: "savings", icon: "🤝", parent_id: null },
+        { name: "Khoản tiết kiệm đồ muốn mua", kind: "savings", icon: "🛍️", parent_id: null },
+        { name: "Dự phòng", kind: "savings", icon: "🛡️", parent_id: null },
+      ];
+
+      let catsRef = [...existingCats];
+      let didInsert = false;
+
+      for (const g of groups) {
+        if (!catsRef.find((c) => c.name === g.name && c.kind === g.kind && !c.parent_id)) {
+          const { data } = await supabase.from("categories").insert({ ...g, user_id: uid }).select("*").single();
+          if (data) {
+            catsRef.push(data);
+            didInsert = true;
+          }
+        }
+      }
+
+      const getParentId = (name: string, kind: string) => catsRef.find((c) => c.name === name && c.kind === kind && !c.parent_id)?.id;
+
+      const details = [
+        { name: "Nợ ngân hàng", kind: "debt", icon: "🏦", parent_id: getParentId("Khoản nợ", "debt") },
+        { name: "Nợ bạn bè", kind: "debt", icon: "👥", parent_id: getParentId("Khoản nợ", "debt") },
+        { name: "Cho người khác vay", kind: "debt", icon: "💸", parent_id: getParentId("Cho nợ", "debt") },
+        { name: "Tiền giữ hộ", kind: "savings", icon: "💼", parent_id: getParentId("Tiết kiệm hộ", "savings") },
+        { name: "Điện thoại", kind: "savings", icon: "📱", parent_id: getParentId("Khoản tiết kiệm đồ muốn mua", "savings") },
+        { name: "Laptop", kind: "savings", icon: "💻", parent_id: getParentId("Khoản tiết kiệm đồ muốn mua", "savings") },
+        { name: "Xe", kind: "savings", icon: "🚗", parent_id: getParentId("Khoản tiết kiệm đồ muốn mua", "savings") },
+        { name: "Quỹ khẩn cấp", kind: "savings", icon: "🚑", parent_id: getParentId("Dự phòng", "savings") },
+      ];
+
+      for (const d of details) {
+        if (d.parent_id && !catsRef.find((c) => c.name === d.name && c.kind === d.kind && c.parent_id === d.parent_id)) {
+          const { data } = await supabase.from("categories").insert({ ...d, user_id: uid }).select("*").single();
+          if (data) {
+            catsRef.push(data);
+            didInsert = true;
+          }
+        }
+      }
+
+      let migrated = false;
+      const defDebt = catsRef.find((c) => c.name === "Nợ ngân hàng" && c.kind === "debt")?.id;
+      const defSav = catsRef.find((c) => c.name === "Quỹ khẩn cấp" && c.kind === "savings")?.id;
+
+      if (defDebt) {
+        const { data } = await supabase.from("transactions").update({ category_id: defDebt }).eq("kind", "debt").is("category_id", null).select("id");
+        if (data && data.length > 0) migrated = true;
+      }
+      if (defSav) {
+        const { data } = await supabase.from("transactions").update({ category_id: defSav }).eq("kind", "savings").is("category_id", null).select("id");
+        if (data && data.length > 0) migrated = true;
+      }
+
+      if (didInsert) qc.invalidateQueries({ queryKey: ["categories"] });
+      if (migrated) qc.invalidateQueries({ queryKey: ["transactions"] });
+
+      localStorage.setItem("migration_v3_completed", "true");
+    }
+    migrate();
+  }, [qc]);
   const del = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("transactions").delete().eq("id", id);
@@ -129,19 +206,16 @@ function DashboardPage() {
 
   const monthStats = useMemo(() => {
     let inc = 0,
-      exp = 0,
-      debt = 0,
-      sav = 0;
+      exp = 0;
     for (const t of txs.data ?? []) {
       if (monthKey(new Date(t.occurred_at)) !== thisMonth) continue;
       const amt = Number(t.amount);
       if (t.kind === "income") inc += amt;
       else if (t.kind === "expense") exp += amt;
-      else if (t.kind === "debt") debt += amt;
-      else sav += amt;
     }
-    return { inc, exp, debt, sav };
+    return { inc, exp };
   }, [txs.data, thisMonth]);
+
 
   const chartData = useMemo(() => {
     const months: { key: string; label: string; expense: number; income: number }[] = [];
@@ -238,19 +312,31 @@ function DashboardPage() {
           tone="destructive"
           onClick={() => setSelectedKindForView("expense")}
         />
-        <StatCard
+        <NestedStatCard
           label="Nợ"
-          value={mask(formatVND(monthStats.debt))}
           icon={<HandCoins className="h-4 w-4" />}
           tone="warning"
-          onClick={() => setSelectedKindForView("debt")}
+          mask={mask}
+          kind="debt"
+          txs={txs.data ?? []}
+          cats={cats.data ?? []}
+          onSelect={(catId) => {
+            setSelectedKindForView("debt");
+            setSelectedCategoryForView(catId || null);
+          }}
         />
-        <StatCard
+        <NestedStatCard
           label="Tiết kiệm"
-          value={mask(formatVND(monthStats.sav))}
           icon={<PiggyBank className="h-4 w-4" />}
           tone="primary"
-          onClick={() => setSelectedKindForView("savings")}
+          mask={mask}
+          kind="savings"
+          txs={txs.data ?? []}
+          cats={cats.data ?? []}
+          onSelect={(catId) => {
+            setSelectedKindForView("savings");
+            setSelectedCategoryForView(catId || null);
+          }}
         />
       </div>
 
@@ -462,7 +548,10 @@ function DashboardPage() {
       {selectedKindForView && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={() => setSelectedKindForView(null)}
+          onClick={() => {
+            setSelectedKindForView(null);
+            setSelectedCategoryForView(null);
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -470,49 +559,72 @@ function DashboardPage() {
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-display text-lg font-semibold flex items-center gap-2">
-                {selectedKindForView === "debt" && (
+                {selectedCategoryForView ? (
                   <>
-                    <HandCoins className="h-5 w-5 text-warning" />
-                    <span>Lịch sử giao dịch Nợ</span>
+                    <span className="text-xl">
+                      {(cats.data ?? []).find((c) => c.id === selectedCategoryForView)?.icon ?? "🏷️"}
+                    </span>
+                    <span>
+                      Lịch sử {(cats.data ?? []).find((c) => c.id === selectedCategoryForView)?.name}
+                    </span>
                   </>
-                )}
-                {selectedKindForView === "savings" && (
+                ) : (
                   <>
-                    <PiggyBank className="h-5 w-5 text-primary" />
-                    <span>Lịch sử giao dịch Tiết kiệm</span>
-                  </>
-                )}
-                {selectedKindForView === "income" && (
-                  <>
-                    <ArrowDownRight className="h-5 w-5 text-success" />
-                    <span>Lịch sử giao dịch Thu nhập</span>
-                  </>
-                )}
-                {selectedKindForView === "expense" && (
-                  <>
-                    <ArrowUpRight className="h-5 w-5 text-destructive" />
-                    <span>Lịch sử giao dịch Chi tiêu</span>
+                    {selectedKindForView === "debt" && (
+                      <>
+                        <HandCoins className="h-5 w-5 text-warning" />
+                        <span>Lịch sử giao dịch Nợ</span>
+                      </>
+                    )}
+                    {selectedKindForView === "savings" && (
+                      <>
+                        <PiggyBank className="h-5 w-5 text-primary" />
+                        <span>Lịch sử giao dịch Tiết kiệm</span>
+                      </>
+                    )}
+                    {selectedKindForView === "income" && (
+                      <>
+                        <ArrowDownRight className="h-5 w-5 text-success" />
+                        <span>Lịch sử giao dịch Thu nhập</span>
+                      </>
+                    )}
+                    {selectedKindForView === "expense" && (
+                      <>
+                        <ArrowUpRight className="h-5 w-5 text-destructive" />
+                        <span>Lịch sử giao dịch Chi tiêu</span>
+                      </>
+                    )}
                   </>
                 )}
               </h3>
               <button
-                onClick={() => setSelectedKindForView(null)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+                onClick={() => {
+                  setSelectedKindForView(null);
+                           <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
+              {(() => {
+                const filteredTxs = (txs.data ?? []).filter((t) => {
+                  if (t.kind !== selectedKindForView) return false;
+                  if (!selectedCategoryForView) return true;
+                  
+                  // if a specific category is selected, check if tx is in that category OR any of its children
+                  if (t.category_id === selectedCategoryForView) return true;
+                  const catMap = new Map((cats.data ?? []).map((c) => [c.id, c]));
+                  const txCat = catMap.get(t.category_id || "");
+                  if (txCat && txCat.parent_id === selectedCategoryForView) return true;
+                  return false;
+                });
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
-              {(txs.data ?? []).filter((t) => t.kind === selectedKindForView).length === 0 ? (
-                <p className="text-center py-8 text-sm text-muted-foreground">
-                  Chưa có giao dịch nào thuộc loại này.
-                </p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {(txs.data ?? [])
-                    .filter((t) => t.kind === selectedKindForView)
-                    .map((t) => {
+                if (filteredTxs.length === 0) {
+                  return (
+                    <p className="text-center py-8 text-sm text-muted-foreground">
+                      Chưa có giao dịch nào thuộc loại này.
+                    </p>
+                  );
+                }
+
+                return (
+                  <ul className="divide-y divide-border">
+                    {filteredTxs.map((t) => {
                       const cat = (cats.data ?? []).find((c) => c.id === t.category_id);
                       const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
                       return (
@@ -552,6 +664,16 @@ function DashboardPage() {
                               className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               aria-label="Xoá giao dịch"
                             >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                );
+              })()}
+            </div>       >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -610,6 +732,109 @@ function StatCard({
         </span>
       </div>
       <p className="mt-2 font-display text-lg font-semibold lg:text-xl">{value}</p>
+    </div>
+  );
+}
+
+function NestedStatCard({
+  label,
+  icon,
+  tone,
+  mask,
+  kind,
+  txs,
+  cats,
+  onSelect,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  tone: "warning" | "primary";
+  mask: (v: string) => string;
+  kind: string;
+  txs: any[];
+  cats: any[];
+  onSelect: (catId?: string) => void;
+}) {
+  const toneClass = tone === "warning" ? "bg-warning/15 text-warning-foreground" : "bg-primary/10 text-primary";
+  
+  const kindTxs = txs.filter((t) => t.kind === kind);
+  const total = kindTxs.reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const groups = cats.filter((c) => c.kind === kind && !c.parent_id).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const catMap = new Map(cats.map(c => [c.id, c]));
+
+  const getCatTotal = (catId: string) => {
+    return kindTxs
+      .filter((t) => t.category_id === catId || catMap.get(t.category_id || "")?.parent_id === catId)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+  };
+
+  return (
+    <div className="flex flex-col rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] transition-all duration-200 col-span-2">
+      <div
+        className="flex items-center justify-between cursor-pointer group"
+        onClick={() => onSelect()}
+      >
+        <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">{label}</span>
+        <span className={cn("grid h-7 w-7 place-items-center rounded-lg", toneClass)}>
+          {icon}
+        </span>
+      </div>
+      <p
+        className="mt-2 font-display text-lg font-semibold lg:text-xl cursor-pointer hover:opacity-80"
+        onClick={() => onSelect()}
+      >
+        {mask(formatVND(total))}
+      </p>
+
+      {groups.length > 0 && (
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3">
+          {groups.map((g) => {
+            const groupTotal = getCatTotal(g.id);
+            const details = cats.filter((c) => c.parent_id === g.id).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+            return (
+              <div key={g.id} className="flex flex-col gap-1">
+                <div
+                  className="flex items-center justify-between text-sm cursor-pointer hover:bg-accent/50 p-1.5 -mx-1.5 rounded-lg transition-colors font-medium text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(g.id);
+                  }}
+                >
+                  <span className="truncate mr-2" title={g.name}>
+                    {g.icon} {g.name}
+                  </span>
+                  <span>{mask(formatVND(groupTotal))}</span>
+                </div>
+                {details.length > 0 && (
+                  <div className="flex flex-col pl-6 space-y-0.5 border-l-2 border-border/50 ml-1.5 mt-0.5">
+                    {details.map((d) => {
+                      const detailTotal = getCatTotal(d.id);
+                      if (detailTotal === 0) return null; // hide empty details to save space
+                      return (
+                        <div
+                          key={d.id}
+                          className="flex items-center justify-between text-xs cursor-pointer hover:bg-accent/50 p-1 -mx-1 rounded-md transition-colors text-muted-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(d.id);
+                          }}
+                        >
+                          <span className="truncate mr-2" title={d.name}>
+                            {d.icon} {d.name}
+                          </span>
+                          <span>{mask(formatVND(detailTotal))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
