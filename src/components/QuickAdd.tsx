@@ -95,8 +95,7 @@ export function QuickAdd() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets-balance"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã thêm giao dịch");
       setText("");
       setOpen(false);

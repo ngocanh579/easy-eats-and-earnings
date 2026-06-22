@@ -16,15 +16,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -49,10 +41,7 @@ function useDashboardData() {
   const wallets = useQuery({
     queryKey: ["wallets"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wallets")
-        .select("*")
-        .order("created_at");
+      const { data, error } = await supabase.from("wallets").select("*").order("created_at");
       if (error) throw error;
       return data;
     },
@@ -86,10 +75,10 @@ function DashboardPage() {
   const { wallets, txs, cats } = useDashboardData();
   const [hidden, setHidden] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
-  const [selectedView, setSelectedView] = useState<
-    | { kind: "income" | "expense" | "debt" | "savings"; categoryId?: string | null }
-    | null
-  >(null);
+  const [selectedView, setSelectedView] = useState<{
+    kind: "income" | "expense" | "debt" | "savings";
+    categoryId?: string | null;
+  } | null>(null);
 
   const qc = useQueryClient();
   const del = useMutation({
@@ -99,51 +88,46 @@ function DashboardPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets-balance"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Đã xoá giao dịch");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Map category id -> category (used to determine debt direction)
-  const catById = useMemo(
-    () => new Map((cats.data ?? []).map((c) => [c.id, c])),
-    [cats.data],
-  );
-
-  // "Cho nợ" = lending out (money leaves wallet). Anything else under debt
-  // (e.g. "Khoản nợ") = borrowing (money enters wallet).
-  const isLendingCategory = (categoryId: string | null) => {
-    if (!categoryId) return false;
-    const c = catById.get(categoryId);
-    if (!c) return false;
-    return c.name === "Cho nợ";
-  };
-
-  const walletBalances = useMemo(() => {
+  // Single source of truth for wallet balance calculation
+  // All pages use this EXACT same logic to ensure consistency
+  const balanceByWalletId = useMemo(() => {
     const map = new Map<string, number>();
+    const catMap = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
+
+    // Initialize with initial balance
     for (const w of wallets.data ?? []) {
       map.set(w.id, Number(w.initial_balance));
     }
+
+    // Apply all transactions using single calculation logic
     for (const t of txs.data ?? []) {
       const cur = map.get(t.wallet_id) ?? 0;
       const amt = Number(t.amount);
       let delta = 0;
-      if (t.kind === "income") delta = amt;
-      else if (t.kind === "expense") delta = -amt;
-      else if (t.kind === "savings") {
-        // Gửi tiết kiệm: rút khỏi ví (chuyển sang quỹ tiết kiệm).
-        // Số âm = rút tiết kiệm về ví.
+
+      if (t.kind === "income") {
+        delta = amt;
+      } else if (t.kind === "expense") {
         delta = -amt;
+      } else if (t.kind === "savings") {
+        delta = -amt; // negative saves, positive withdraws
       } else if (t.kind === "debt") {
-        // Cho vay: trừ ví. Đi vay: cộng ví. Số âm đảo chiều (trả nợ / nhận lại).
-        delta = isLendingCategory(t.category_id) ? -amt : amt;
+        // "Cho nợ" = lending = money leaves = -amount
+        // "Khoản nợ" = borrowing = money enters = +amount
+        const catName = (t.category_id && catMap.get(t.category_id)) ?? "Khoản nợ";
+        delta = catName === "Cho nợ" ? -amt : amt;
       }
+
       map.set(t.wallet_id, cur + delta);
     }
+
     return map;
-  }, [wallets.data, txs.data, catById]);
+  }, [wallets.data, txs.data, cats.data]);
 
   // Quỹ tiết kiệm = tổng các giao dịch kind="savings" (gửi vào dương, rút ra âm)
   const savingsPot = useMemo(
@@ -155,16 +139,15 @@ function DashboardPage() {
   );
 
   const walletSum = useMemo(
-    () => Array.from(walletBalances.values()).reduce((a, b) => a + b, 0),
-    [walletBalances],
+    () => Array.from(balanceByWalletId.values()).reduce((a, b) => a + b, 0),
+    [balanceByWalletId],
   );
 
   // Tổng tài sản = Ví + Tiết kiệm (Nợ là khoản phải trả/phải thu, không tính ở đây)
   const total = walletSum + savingsPot;
 
   const now = new Date();
-  const monthKey = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   const thisMonth = monthKey(now);
 
   const monthStats = useMemo(() => {
@@ -229,8 +212,7 @@ function DashboardPage() {
       d.setDate(today.getDate() - i);
       const dayKey = d.toISOString().slice(0, 10);
       const has = (txs.data ?? []).some(
-        (t) =>
-          t.kind === "expense" && t.occurred_at.slice(0, 10) === dayKey,
+        (t) => t.kind === "expense" && t.occurred_at.slice(0, 10) === dayKey,
       );
       if (!has) count++;
     }
@@ -299,12 +281,8 @@ function DashboardPage() {
         <div className="rounded-2xl border border-border bg-[image:var(--gradient-card)] p-5 shadow-[var(--shadow-soft)] lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="font-display text-base font-semibold">
-                Chi tiêu 6 tháng gần nhất
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Quan sát xu hướng theo tháng
-              </p>
+              <h3 className="font-display text-base font-semibold">Chi tiêu 6 tháng gần nhất</h3>
+              <p className="text-xs text-muted-foreground">Quan sát xu hướng theo tháng</p>
             </div>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </div>
@@ -361,9 +339,7 @@ function DashboardPage() {
             </div>
             <p className="mt-2 font-display text-3xl font-semibold">
               {noSpendDays}
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                / 30 ngày
-              </span>
+              <span className="ml-1 text-sm font-normal text-muted-foreground">/ 30 ngày</span>
             </p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
@@ -380,9 +356,7 @@ function DashboardPage() {
                       <span>{cat!.icon}</span>
                       <span className="truncate">{cat!.name}</span>
                     </span>
-                    <span className="font-display font-semibold">
-                      {mask(formatVND(amount))}
-                    </span>
+                    <span className="font-display font-semibold">{mask(formatVND(amount))}</span>
                   </li>
                 ))}
               </ul>
@@ -405,23 +379,19 @@ function DashboardPage() {
                 <span className="truncate">{w.name}</span>
               </div>
               <p className="mt-2 font-display text-xl font-semibold">
-                {mask(formatVND(walletBalances.get(w.id) ?? 0))}
+                {mask(formatVND(balanceByWalletId.get(w.id) ?? 0))}
               </p>
             </div>
           ))}
           {(wallets.data ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Chưa có ví — vào tab Ví để tạo.
-            </p>
+            <p className="text-sm text-muted-foreground">Chưa có ví — vào tab Ví để tạo.</p>
           )}
         </div>
       </div>
 
       {/* Recent */}
       <div>
-        <h3 className="mb-3 font-display text-base font-semibold">
-          Giao dịch gần đây
-        </h3>
+        <h3 className="mb-3 font-display text-base font-semibold">Giao dịch gần đây</h3>
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           {recent.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
@@ -433,12 +403,7 @@ function DashboardPage() {
               {recent.map((t) => {
                 const cat = (cats.data ?? []).find((c) => c.id === t.category_id);
                 const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
-                const sign =
-                  t.kind === "income"
-                    ? "+"
-                    : t.kind === "expense"
-                      ? "-"
-                      : "";
+                const sign = t.kind === "income" ? "+" : t.kind === "expense" ? "-" : "";
                 return (
                   <li
                     key={t.id}
@@ -453,8 +418,7 @@ function DashboardPage() {
                         {t.note || cat?.name || "Giao dịch"}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {w?.name} •{" "}
-                        {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                        {w?.name} • {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
                       </p>
                     </div>
                     <div
@@ -499,159 +463,161 @@ function DashboardPage() {
         </div>
       </div>
 
-      {selectedView && (() => {
-        const kind = selectedView.kind;
-        const allCats = cats.data ?? [];
-        const parent = allCats.find((c) => c.kind === kind && c.parent_id === null);
-        const children = parent
-          ? allCats.filter((c) => c.parent_id === parent.id)
-          : [];
-        const hasChildren = children.length > 0;
-        const activeCatId = selectedView.categoryId;
+      {selectedView &&
+        (() => {
+          const kind = selectedView.kind;
+          const allCats = cats.data ?? [];
+          const parent = allCats.find((c) => c.kind === kind && c.parent_id === null);
+          const children = parent ? allCats.filter((c) => c.parent_id === parent.id) : [];
+          const hasChildren = children.length > 0;
+          const activeCatId = selectedView.categoryId;
 
-        const allTxs = txs.data ?? [];
-        const kindTxs = allTxs.filter((t) => t.kind === kind);
-        const filteredTxs =
-          activeCatId === undefined || activeCatId === null
-            ? kindTxs
-            : kindTxs.filter((t) => t.category_id === activeCatId);
+          const allTxs = txs.data ?? [];
+          const kindTxs = allTxs.filter((t) => t.kind === kind);
+          const filteredTxs =
+            activeCatId === undefined || activeCatId === null
+              ? kindTxs
+              : kindTxs.filter((t) => t.category_id === activeCatId);
 
-        const sumOf = (catId: string | null) =>
-          (catId === null
-            ? kindTxs
-            : kindTxs.filter((t) => t.category_id === catId)
-          ).reduce((a, t) => a + Number(t.amount), 0);
+          const sumOf = (catId: string | null) =>
+            (catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId)).reduce(
+              (a, t) => a + Number(t.amount),
+              0,
+            );
 
-        const totalAll = sumOf(null);
+          const totalAll = sumOf(null);
 
-        const header =
-          kind === "debt"
-            ? { icon: <HandCoins className="h-5 w-5 text-warning" />, label: "Nợ" }
-            : kind === "savings"
-              ? { icon: <PiggyBank className="h-5 w-5 text-primary" />, label: "Tiết kiệm" }
-              : kind === "income"
-                ? { icon: <ArrowDownRight className="h-5 w-5 text-success" />, label: "Thu nhập" }
-                : { icon: <ArrowUpRight className="h-5 w-5 text-destructive" />, label: "Chi tiêu" };
+          const header =
+            kind === "debt"
+              ? { icon: <HandCoins className="h-5 w-5 text-warning" />, label: "Nợ" }
+              : kind === "savings"
+                ? { icon: <PiggyBank className="h-5 w-5 text-primary" />, label: "Tiết kiệm" }
+                : kind === "income"
+                  ? { icon: <ArrowDownRight className="h-5 w-5 text-success" />, label: "Thu nhập" }
+                  : {
+                      icon: <ArrowUpRight className="h-5 w-5 text-destructive" />,
+                      label: "Chi tiêu",
+                    };
 
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-            onClick={() => setSelectedView(null)}
-          >
+          return (
             <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg rounded-t-3xl bg-card p-5 shadow-[var(--shadow-soft)] sm:rounded-3xl max-h-[85vh] flex flex-col"
+              className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+              onClick={() => setSelectedView(null)}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-display text-lg font-semibold flex items-center gap-2">
-                  {header.icon}
-                  <span>Lịch sử giao dịch {header.label}</span>
-                </h3>
-                <button
-                  onClick={() => setSelectedView(null)}
-                  className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg rounded-t-3xl bg-card p-5 shadow-[var(--shadow-soft)] sm:rounded-3xl max-h-[85vh] flex flex-col"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+                    {header.icon}
+                    <span>Lịch sử giao dịch {header.label}</span>
+                  </h3>
+                  <button
+                    onClick={() => setSelectedView(null)}
+                    className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-              {hasChildren && (
-                <>
-                  <div className="mb-3 rounded-xl bg-muted/50 p-3">
-                    <p className="text-xs text-muted-foreground">Tổng {header.label}</p>
-                    <p className="font-display text-xl font-semibold">{mask(formatVND(totalAll))}</p>
-                  </div>
-                  <div className="mb-3 flex flex-wrap gap-1.5">
-                    <button
-                      onClick={() => setSelectedView({ kind, categoryId: null })}
-                      className={cn(
-                        "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                        !activeCatId
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-accent",
-                      )}
-                    >
-                      Tất cả · {mask(formatVND(totalAll))}
-                    </button>
-                    {children.map((c) => (
+                {hasChildren && (
+                  <>
+                    <div className="mb-3 rounded-xl bg-muted/50 p-3">
+                      <p className="text-xs text-muted-foreground">Tổng {header.label}</p>
+                      <p className="font-display text-xl font-semibold">
+                        {mask(formatVND(totalAll))}
+                      </p>
+                    </div>
+                    <div className="mb-3 flex flex-wrap gap-1.5">
                       <button
-                        key={c.id}
-                        onClick={() => setSelectedView({ kind, categoryId: c.id })}
+                        onClick={() => setSelectedView({ kind, categoryId: null })}
                         className={cn(
                           "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                          activeCatId === c.id
+                          !activeCatId
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground hover:bg-accent",
                         )}
                       >
-                        {c.icon} {c.name} · {mask(formatVND(sumOf(c.id)))}
+                        Tất cả · {mask(formatVND(totalAll))}
                       </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
-                {filteredTxs.length === 0 ? (
-                  <p className="text-center py-8 text-sm text-muted-foreground">
-                    Chưa có giao dịch nào thuộc nhóm này.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border">
-                    {filteredTxs.map((t) => {
-                      const cat = allCats.find((c) => c.id === t.category_id);
-                      const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
-                      return (
-                        <li
-                          key={t.id}
-                          className="flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2"
+                      {children.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedView({ kind, categoryId: c.id })}
+                          className={cn(
+                            "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                            activeCatId === c.id
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground hover:bg-accent",
+                          )}
                         >
-                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
-                            {cat?.icon ?? "🏷️"}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {t.note || cat?.name || "Giao dịch"}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {w?.name} •{" "}
-                              {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
-                            </p>
-                          </div>
-                          <div className="font-display text-sm font-semibold text-foreground mr-2">
-                            {mask(formatVND(Number(t.amount)))}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => setEditingTx(t as TransactionToEdit)}
-                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                              aria-label="Sửa giao dịch"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
-                                  del.mutate(t.id);
-                                }
-                              }}
-                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                              aria-label="Xoá giao dịch"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                          {c.icon} {c.name} · {mask(formatVND(sumOf(c.id)))}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
+
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
+                  {filteredTxs.length === 0 ? (
+                    <p className="text-center py-8 text-sm text-muted-foreground">
+                      Chưa có giao dịch nào thuộc nhóm này.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {filteredTxs.map((t) => {
+                        const cat = allCats.find((c) => c.id === t.category_id);
+                        const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
+                        return (
+                          <li
+                            key={t.id}
+                            className="flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2"
+                          >
+                            <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
+                              {cat?.icon ?? "🏷️"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {t.note || cat?.name || "Giao dịch"}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {w?.name} • {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                              </p>
+                            </div>
+                            <div className="font-display text-sm font-semibold text-foreground mr-2">
+                              {mask(formatVND(Number(t.amount)))}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setEditingTx(t as TransactionToEdit)}
+                                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                aria-label="Sửa giao dịch"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
+                                    del.mutate(t.id);
+                                  }
+                                }}
+                                className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                aria-label="Xoá giao dịch"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
-
+          );
+        })()}
 
       <EditTransactionModal
         transaction={editingTx}
@@ -688,14 +654,13 @@ function StatCard({
       onClick={onClick}
       className={cn(
         "rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] transition-all duration-200",
-        onClick && "cursor-pointer hover:scale-[1.02] hover:border-primary/40 hover:shadow-[var(--shadow-glow)] active:scale-[0.98]"
+        onClick &&
+          "cursor-pointer hover:scale-[1.02] hover:border-primary/40 hover:shadow-[var(--shadow-glow)] active:scale-[0.98]",
       )}
     >
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <span className={cn("grid h-7 w-7 place-items-center rounded-lg", toneClass)}>
-          {icon}
-        </span>
+        <span className={cn("grid h-7 w-7 place-items-center rounded-lg", toneClass)}>{icon}</span>
       </div>
       <p className="mt-2 font-display text-lg font-semibold lg:text-xl">{value}</p>
     </div>

@@ -91,8 +91,7 @@ function CategoriesPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets-balance"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã xoá giao dịch");
     },
     onError: (e: Error) => toast.error(e.message),
