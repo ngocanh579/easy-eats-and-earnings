@@ -232,28 +232,28 @@ function DashboardPage() {
           value={mask(formatVND(monthStats.inc))}
           icon={<ArrowDownRight className="h-4 w-4" />}
           tone="success"
-          onClick={() => setSelectedKindForView("income")}
+          onClick={() => setSelectedView({ kind: "income" })}
         />
         <StatCard
           label="Chi tháng này"
           value={mask(formatVND(monthStats.exp))}
           icon={<ArrowUpRight className="h-4 w-4" />}
           tone="destructive"
-          onClick={() => setSelectedKindForView("expense")}
+          onClick={() => setSelectedView({ kind: "expense" })}
         />
         <StatCard
           label="Nợ"
           value={mask(formatVND(monthStats.debt))}
           icon={<HandCoins className="h-4 w-4" />}
           tone="warning"
-          onClick={() => setSelectedKindForView("debt")}
+          onClick={() => setSelectedView({ kind: "debt" })}
         />
         <StatCard
           label="Tiết kiệm"
           value={mask(formatVND(monthStats.sav))}
           icon={<PiggyBank className="h-4 w-4" />}
           tone="primary"
-          onClick={() => setSelectedKindForView("savings")}
+          onClick={() => setSelectedView({ kind: "savings" })}
         />
       </div>
 
