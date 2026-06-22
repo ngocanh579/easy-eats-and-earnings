@@ -19,12 +19,11 @@ DECLARE
   delta NUMERIC(18,2) := 0;
   cat_name TEXT;
 BEGIN
-  -- Calculate the delta based on transaction kind
+  -- Only update wallet balance for income, expense, and debt transactions
+  -- IMPORTANT: Savings transactions are kept separate and do NOT affect wallet balance
   IF NEW.kind = 'income' THEN
     delta := NEW.amount;
   ELSIF NEW.kind = 'expense' THEN
-    delta := -NEW.amount;
-  ELSIF NEW.kind = 'savings' THEN
     delta := -NEW.amount;
   ELSIF NEW.kind = 'debt' THEN
     -- Get category name to determine if it's lending or borrowing
@@ -34,6 +33,9 @@ BEGIN
     ELSE
       delta := NEW.amount;
     END IF;
+  ELSIF NEW.kind = 'savings' THEN
+    -- Savings do NOT affect wallet balance - handled separately in frontend
+    delta := 0;
   END IF;
 
   -- Update the wallet balance
@@ -57,12 +59,10 @@ DECLARE
   new_delta NUMERIC(18,2) := 0;
   cat_name TEXT;
 BEGIN
-  -- Calculate old delta
+  -- Calculate old delta (only for income, expense, debt - not savings)
   IF OLD.kind = 'income' THEN
     old_delta := OLD.amount;
   ELSIF OLD.kind = 'expense' THEN
-    old_delta := -OLD.amount;
-  ELSIF OLD.kind = 'savings' THEN
     old_delta := -OLD.amount;
   ELSIF OLD.kind = 'debt' THEN
     SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = OLD.category_id;
@@ -71,14 +71,15 @@ BEGIN
     ELSE
       old_delta := OLD.amount;
     END IF;
+  ELSIF OLD.kind = 'savings' THEN
+    -- Savings do NOT affect wallet balance
+    old_delta := 0;
   END IF;
 
-  -- Calculate new delta
+  -- Calculate new delta (only for income, expense, debt - not savings)
   IF NEW.kind = 'income' THEN
     new_delta := NEW.amount;
   ELSIF NEW.kind = 'expense' THEN
-    new_delta := -NEW.amount;
-  ELSIF NEW.kind = 'savings' THEN
     new_delta := -NEW.amount;
   ELSIF NEW.kind = 'debt' THEN
     SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = NEW.category_id;
@@ -87,6 +88,9 @@ BEGIN
     ELSE
       new_delta := NEW.amount;
     END IF;
+  ELSIF NEW.kind = 'savings' THEN
+    -- Savings do NOT affect wallet balance
+    new_delta := 0;
   END IF;
 
   -- If wallet_id changed, update both old and new wallet
@@ -120,12 +124,10 @@ DECLARE
   delta NUMERIC(18,2) := 0;
   cat_name TEXT;
 BEGIN
-  -- Calculate the delta to remove
+  -- Calculate the delta to remove (only for income, expense, debt - not savings)
   IF OLD.kind = 'income' THEN
     delta := OLD.amount;
   ELSIF OLD.kind = 'expense' THEN
-    delta := -OLD.amount;
-  ELSIF OLD.kind = 'savings' THEN
     delta := -OLD.amount;
   ELSIF OLD.kind = 'debt' THEN
     SELECT c.name INTO cat_name FROM public.categories c WHERE c.id = OLD.category_id;
@@ -134,6 +136,9 @@ BEGIN
     ELSE
       delta := OLD.amount;
     END IF;
+  ELSIF OLD.kind = 'savings' THEN
+    -- Savings do NOT affect wallet balance
+    delta := 0;
   END IF;
 
   -- Remove the delta from wallet balance
