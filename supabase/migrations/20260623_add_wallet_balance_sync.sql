@@ -4,9 +4,9 @@ ADD COLUMN current_balance NUMERIC(18,2) NOT NULL DEFAULT 0;
 
 -- Preserve existing wallet balances - copy initial_balance to current_balance
 -- The initial_balance is the source of truth for existing data
+-- IMPORTANT: Unconditionally set current_balance to initial_balance for ALL wallets
 UPDATE public.wallets 
-SET current_balance = initial_balance
-WHERE current_balance = 0;
+SET current_balance = initial_balance;
 
 -- Function to update wallet balance when transaction is inserted
 CREATE OR REPLACE FUNCTION public.update_wallet_balance_on_insert()
