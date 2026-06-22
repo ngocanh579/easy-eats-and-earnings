@@ -462,61 +462,107 @@ function DashboardPage() {
         </div>
       </div>
 
-      {selectedKindForView && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={() => setSelectedKindForView(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-t-3xl bg-card p-5 shadow-[var(--shadow-soft)] sm:rounded-3xl max-h-[85vh] flex flex-col"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-display text-lg font-semibold flex items-center gap-2">
-                {selectedKindForView === "debt" && (
-                  <>
-                    <HandCoins className="h-5 w-5 text-warning" />
-                    <span>Lịch sử giao dịch Nợ</span>
-                  </>
-                )}
-                {selectedKindForView === "savings" && (
-                  <>
-                    <PiggyBank className="h-5 w-5 text-primary" />
-                    <span>Lịch sử giao dịch Tiết kiệm</span>
-                  </>
-                )}
-                {selectedKindForView === "income" && (
-                  <>
-                    <ArrowDownRight className="h-5 w-5 text-success" />
-                    <span>Lịch sử giao dịch Thu nhập</span>
-                  </>
-                )}
-                {selectedKindForView === "expense" && (
-                  <>
-                    <ArrowUpRight className="h-5 w-5 text-destructive" />
-                    <span>Lịch sử giao dịch Chi tiêu</span>
-                  </>
-                )}
-              </h3>
-              <button
-                onClick={() => setSelectedKindForView(null)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      {selectedView && (() => {
+        const kind = selectedView.kind;
+        const allCats = cats.data ?? [];
+        const parent = allCats.find((c) => c.kind === kind && c.parent_id === null);
+        const children = parent
+          ? allCats.filter((c) => c.parent_id === parent.id)
+          : [];
+        const hasChildren = children.length > 0;
+        const activeCatId = selectedView.categoryId;
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
-              {(txs.data ?? []).filter((t) => t.kind === selectedKindForView).length === 0 ? (
-                <p className="text-center py-8 text-sm text-muted-foreground">
-                  Chưa có giao dịch nào thuộc loại này.
-                </p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {(txs.data ?? [])
-                    .filter((t) => t.kind === selectedKindForView)
-                    .map((t) => {
-                      const cat = (cats.data ?? []).find((c) => c.id === t.category_id);
+        const allTxs = txs.data ?? [];
+        const kindTxs = allTxs.filter((t) => t.kind === kind);
+        const filteredTxs =
+          activeCatId === undefined || activeCatId === null
+            ? kindTxs
+            : kindTxs.filter((t) => t.category_id === activeCatId);
+
+        const sumOf = (catId: string | null) =>
+          (catId === null
+            ? kindTxs
+            : kindTxs.filter((t) => t.category_id === catId)
+          ).reduce((a, t) => a + Number(t.amount), 0);
+
+        const totalAll = sumOf(null);
+
+        const header =
+          kind === "debt"
+            ? { icon: <HandCoins className="h-5 w-5 text-warning" />, label: "Nợ" }
+            : kind === "savings"
+              ? { icon: <PiggyBank className="h-5 w-5 text-primary" />, label: "Tiết kiệm" }
+              : kind === "income"
+                ? { icon: <ArrowDownRight className="h-5 w-5 text-success" />, label: "Thu nhập" }
+                : { icon: <ArrowUpRight className="h-5 w-5 text-destructive" />, label: "Chi tiêu" };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+            onClick={() => setSelectedView(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg rounded-t-3xl bg-card p-5 shadow-[var(--shadow-soft)] sm:rounded-3xl max-h-[85vh] flex flex-col"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+                  {header.icon}
+                  <span>Lịch sử giao dịch {header.label}</span>
+                </h3>
+                <button
+                  onClick={() => setSelectedView(null)}
+                  className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {hasChildren && (
+                <>
+                  <div className="mb-3 rounded-xl bg-muted/50 p-3">
+                    <p className="text-xs text-muted-foreground">Tổng {header.label}</p>
+                    <p className="font-display text-xl font-semibold">{mask(formatVND(totalAll))}</p>
+                  </div>
+                  <div className="mb-3 flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => setSelectedView({ kind, categoryId: null })}
+                      className={cn(
+                        "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                        !activeCatId
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-accent",
+                      )}
+                    >
+                      Tất cả · {mask(formatVND(totalAll))}
+                    </button>
+                    {children.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedView({ kind, categoryId: c.id })}
+                        className={cn(
+                          "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                          activeCatId === c.id
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-accent",
+                        )}
+                      >
+                        {c.icon} {c.name} · {mask(formatVND(sumOf(c.id)))}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
+                {filteredTxs.length === 0 ? (
+                  <p className="text-center py-8 text-sm text-muted-foreground">
+                    Chưa có giao dịch nào thuộc nhóm này.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {filteredTxs.map((t) => {
+                      const cat = allCats.find((c) => c.id === t.category_id);
                       const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
                       return (
                         <li
@@ -536,7 +582,7 @@ function DashboardPage() {
                             </p>
                           </div>
                           <div className="font-display text-sm font-semibold text-foreground mr-2">
-                            {formatVND(Number(t.amount))}
+                            {mask(formatVND(Number(t.amount)))}
                           </div>
                           <div className="flex items-center gap-1">
                             <button
@@ -561,12 +607,14 @@ function DashboardPage() {
                         </li>
                       );
                     })}
-                </ul>
-              )}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
 
       <EditTransactionModal
         transaction={editingTx}
