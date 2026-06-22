@@ -106,6 +106,21 @@ function DashboardPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Map category id -> category (used to determine debt direction)
+  const catById = useMemo(
+    () => new Map((cats.data ?? []).map((c) => [c.id, c])),
+    [cats.data],
+  );
+
+  // "Cho nợ" = lending out (money leaves wallet). Anything else under debt
+  // (e.g. "Khoản nợ") = borrowing (money enters wallet).
+  const isLendingCategory = (categoryId: string | null) => {
+    if (!categoryId) return false;
+    const c = catById.get(categoryId);
+    if (!c) return false;
+    return c.name === "Cho nợ";
+  };
+
   const walletBalances = useMemo(() => {
     const map = new Map<string, number>();
     for (const w of wallets.data ?? []) {
@@ -113,17 +128,39 @@ function DashboardPage() {
     }
     for (const t of txs.data ?? []) {
       const cur = map.get(t.wallet_id) ?? 0;
-      const sign =
-        t.kind === "income" ? 1 : t.kind === "expense" ? -1 : 0; // debt/savings: neutral on cash
-      map.set(t.wallet_id, cur + sign * Number(t.amount));
+      const amt = Number(t.amount);
+      let delta = 0;
+      if (t.kind === "income") delta = amt;
+      else if (t.kind === "expense") delta = -amt;
+      else if (t.kind === "savings") {
+        // Gửi tiết kiệm: rút khỏi ví (chuyển sang quỹ tiết kiệm).
+        // Số âm = rút tiết kiệm về ví.
+        delta = -amt;
+      } else if (t.kind === "debt") {
+        // Cho vay: trừ ví. Đi vay: cộng ví. Số âm đảo chiều (trả nợ / nhận lại).
+        delta = isLendingCategory(t.category_id) ? -amt : amt;
+      }
+      map.set(t.wallet_id, cur + delta);
     }
     return map;
-  }, [wallets.data, txs.data]);
+  }, [wallets.data, txs.data, catById]);
 
-  const total = useMemo(
+  // Quỹ tiết kiệm = tổng các giao dịch kind="savings" (gửi vào dương, rút ra âm)
+  const savingsPot = useMemo(
+    () =>
+      (txs.data ?? [])
+        .filter((t) => t.kind === "savings")
+        .reduce((a, t) => a + Number(t.amount), 0),
+    [txs.data],
+  );
+
+  const walletSum = useMemo(
     () => Array.from(walletBalances.values()).reduce((a, b) => a + b, 0),
     [walletBalances],
   );
+
+  // Tổng tài sản = Ví + Tiết kiệm (Nợ là khoản phải trả/phải thu, không tính ở đây)
+  const total = walletSum + savingsPot;
 
   const now = new Date();
   const monthKey = (d: Date) =>
