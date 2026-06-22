@@ -73,6 +73,13 @@ export function QuickAdd() {
       if (!parsed) throw new Error("Định dạng không đúng. VD: 20k cafe");
       const wid = walletId || wallets[0]?.id;
       if (!wid) throw new Error("Chưa có ví. Hãy tạo ví trước.");
+      if ((kind === "debt" || kind === "savings") && !categoryId) {
+        throw new Error(
+          kind === "debt"
+            ? "Hãy chọn nhóm: Khoản nợ hoặc Cho nợ"
+            : "Hãy chọn nhóm tiết kiệm",
+        );
+      }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Chưa đăng nhập");
       const { error } = await supabase.from("transactions").insert({
