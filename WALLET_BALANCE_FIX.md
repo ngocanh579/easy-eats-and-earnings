@@ -2,14 +2,17 @@
 
 ## Problem Statement
 
-The application had multiple independent balance calculations across different pages, leading to inconsistent displays:
+The application had inconsistent wallet balance displays across pages because:
 
-- **Wallet page**: Shows correct balance
-- **Overview/Dashboard**: Shows incorrect amounts (old or recalculated values)
-- **Total assets**: Shows wrong totals
-- **Debt/Savings summary**: Shows incorrect amounts
+1. **No persistent balance field** - Wallets table only had `initial_balance` (set once at creation, never updated)
+2. **Frontend recalculation** - Every page had to recalculate balance from transactions
+3. **Multiple calculations** - Different pages used different logic → inconsistent results
+4. **Data loss risk** - Migrating without preserving existing balances
 
-The root cause was that **wallet balances were never updated in the database** when transactions were created, edited, or deleted. Instead, the frontend kept recalculating balances from transactions on every page load, leading to different results in different places.
+### Example Issue
+- Bank wallet: -251,000đ (existing balance from before transactions)
+- Cash wallet: X (existing balance)
+- After incorrect migration: Both became 0 (lost existing data)
 
 ## Solution Architecture
 
@@ -59,23 +62,30 @@ AFTER (✅ Correct):
 
 ### Database Changes
 
-**New Migration**: `20260623_add_wallet_balance_sync.sql`
+**Primary Migration**: `20260623_add_wallet_balance_sync.sql`
 
 1. **Added `current_balance` column** to wallets table
    - Type: `NUMERIC(18,2)`
    - Default: 0
-   - Initialized with calculated balance from existing transactions
+   - **Preserves existing balance**: Copies `initial_balance` → `current_balance`
+   - ✅ Does NOT recalculate from transactions
+   - ✅ Preserves existing wallet data
 
-2. **Created 3 trigger functions** to maintain balance:
+2. **Created 3 trigger functions** to maintain balance going forward:
    - `update_wallet_balance_on_insert()` - When transaction is created
    - `update_wallet_balance_on_update()` - When transaction is edited
    - `update_wallet_balance_on_delete()` - When transaction is deleted
 
-3. **Calculation Logic** in triggers:
+3. **Trigger Logic** (applies to NEW transactions only):
    - **Income**: +amount
    - **Expense**: -amount
    - **Savings**: -amount (negative withdraws, positive saves)
    - **Debt**: -amount if "Cho nợ" (lending), +amount otherwise (borrowing)
+
+**Recovery Migration**: `20260623_restore_wallet_balances.sql` (if needed)
+- If initial migration incorrectly reset balances to 0
+- Restores `current_balance` from `initial_balance` for all wallets
+- Run this AFTER the primary migration if data was lost
 
 ### Frontend Changes
 
@@ -174,18 +184,27 @@ Now all pages show the **exact same wallet balance** because they all read from 
 
 ## Migration Steps
 
-1. Run the migration: `20260623_add_wallet_balance_sync.sql`
-2. Migration automatically:
+### If Starting Fresh (No Data Loss)
+1. Run: `20260623_add_wallet_balance_sync.sql`
    - Adds `current_balance` column
-   - Initializes with correct calculated values from existing transactions
-   - Creates 3 trigger functions
-   - Creates 3 triggers on the transactions table
+   - Copies `initial_balance` → `current_balance` (preserves existing data)
+   - Creates trigger functions and triggers
+2. Deploy new frontend code
+3. Test transactions create/edit/delete correctly
+
+### If Data Was Lost (Balances Became 0)
+1. Run: `20260623_restore_wallet_balances.sql`
+   - Restores `current_balance` from `initial_balance` for all wallets
+   - Example: Bank (-251,000đ) returns to correct value
+2. Verify balances are restored
 3. Deploy new frontend code
-4. Test:
-   - Create a transaction → wallet balance updates
-   - Edit a transaction → wallet balance recalculates correctly
-   - Delete a transaction → wallet balance returns to previous state
-   - Check Overview, Wallets, and Total Assets show same value
+
+### Testing
+- Create transaction → wallet balance updates immediately
+- Edit transaction → balance recalculates (removes old delta, applies new)
+- Delete transaction → balance returns to previous correct state
+- All pages (Overview, Wallets, Total Assets) show identical balance
+- Debt/Savings calculations remain correct
 
 ## Debugging
 

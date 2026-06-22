@@ -2,28 +2,11 @@
 ALTER TABLE public.wallets 
 ADD COLUMN current_balance NUMERIC(18,2) NOT NULL DEFAULT 0;
 
--- Update current_balance for existing wallets based on transactions
-UPDATE public.wallets w
-SET current_balance = w.initial_balance + COALESCE(
-  (SELECT COALESCE(SUM(
-    CASE 
-      WHEN t.kind = 'income' THEN t.amount
-      WHEN t.kind = 'expense' THEN -t.amount
-      WHEN t.kind = 'savings' THEN -t.amount
-      WHEN t.kind = 'debt' THEN (
-        CASE 
-          WHEN c.name = 'Cho nợ' THEN -t.amount
-          ELSE t.amount
-        END
-      )
-      ELSE 0
-    END
-  ), 0)
-  FROM public.transactions t
-  LEFT JOIN public.categories c ON t.category_id = c.id
-  WHERE t.wallet_id = w.id AND t.user_id = w.user_id),
-  0
-);
+-- Preserve existing wallet balances - copy initial_balance to current_balance
+-- The initial_balance is the source of truth for existing data
+-- IMPORTANT: Unconditionally set current_balance to initial_balance for ALL wallets
+UPDATE public.wallets 
+SET current_balance = initial_balance;
 
 -- Function to update wallet balance when transaction is inserted
 CREATE OR REPLACE FUNCTION public.update_wallet_balance_on_insert()
