@@ -74,7 +74,7 @@ function useDashboardData() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id,name,kind,icon,color");
+        .select("id,name,kind,icon,color,parent_id");
       if (error) throw error;
       return data;
     },
