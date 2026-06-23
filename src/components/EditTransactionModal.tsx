@@ -1,3 +1,4 @@
+import { friendlyError } from "@/lib/errors";
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Save } from "lucide-react";
@@ -140,7 +141,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       toast.success("Đã cập nhật giao dịch");
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   if (!open || !transaction) return null;

@@ -1,3 +1,4 @@
+import { friendlyError } from "@/lib/errors";
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -94,7 +95,7 @@ function CategoriesPage() {
       qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
       toast.success("Đã xoá giao dịch");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   const grouped = useMemo(() => {
@@ -126,7 +127,7 @@ function CategoriesPage() {
       setName("");
       setOpen(null);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   const update = useMutation({
@@ -144,7 +145,7 @@ function CategoriesPage() {
       setName("");
       setOpen(null);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   const del = useMutation({
@@ -156,7 +157,7 @@ function CategoriesPage() {
       qc.invalidateQueries({ queryKey: ["categories"] });
       toast.success("Đã xoá");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   return (

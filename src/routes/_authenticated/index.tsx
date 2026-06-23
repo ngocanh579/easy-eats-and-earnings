@@ -1,3 +1,4 @@
+import { friendlyError } from "@/lib/errors";
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -91,7 +92,7 @@ function DashboardPage() {
       qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã xoá giao dịch");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   // Read wallet balances directly from database (single source of truth)
