@@ -1,3 +1,4 @@
+import { friendlyError } from "@/lib/errors";
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -84,7 +85,7 @@ function WalletsPage() {
       setName("");
       setBalance("");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   const del = useMutation({
@@ -97,7 +98,7 @@ function WalletsPage() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Đã xoá ví");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   return (

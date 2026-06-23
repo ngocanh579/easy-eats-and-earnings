@@ -1,3 +1,4 @@
+import { friendlyError } from "@/lib/errors";
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Save, FileText, Settings, Target } from "lucide-react";
@@ -69,7 +70,7 @@ export function BudgetDetailsModal({
       toast.success("Đã cập nhật ngân sách");
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyError(e)),
   });
 
   if (!open || !budget) return null;
