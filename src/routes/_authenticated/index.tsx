@@ -127,17 +127,20 @@ function DashboardPage() {
   const thisMonth = monthKey(now);
 
   const monthStats = useMemo(() => {
+    // Thu / Chi tính theo tháng hiện tại (chỉ income & expense).
+    // Nợ = tổng tất cả giao dịch debt (Cho vay + Khoản vay), tính trên toàn bộ lịch sử.
+    // Tiết kiệm = quỹ tiết kiệm hiện có (toàn bộ lịch sử).
     let inc = 0,
       exp = 0,
       debt = 0,
       sav = 0;
     for (const t of txs.data ?? []) {
-      if (monthKey(new Date(t.occurred_at)) !== thisMonth) continue;
       const amt = Number(t.amount);
-      if (t.kind === "income") inc += amt;
-      else if (t.kind === "expense") exp += amt;
-      else if (t.kind === "debt") debt += amt;
-      else sav += amt;
+      const inThisMonth = monthKey(new Date(t.occurred_at)) === thisMonth;
+      if (t.kind === "income" && inThisMonth) inc += amt;
+      else if (t.kind === "expense" && inThisMonth) exp += amt;
+      else if (t.kind === "debt") debt += Math.abs(amt);
+      else if (t.kind === "savings") sav += amt;
     }
     return { inc, exp, debt, sav };
   }, [txs.data, thisMonth]);
