@@ -60,10 +60,14 @@ export function QuickAdd() {
     },
   });
 
-  // For debt/savings, only allow selecting child categories (parents are aggregate-only)
+  // Filter categories based on kind
+  // For debt/savings: only show child categories (parents are aggregate-only)
+  // For income/expense: show all categories of that kind
   const filteredCats = categories.filter((c) => {
     if (c.kind !== kind) return false;
-    if (kind === "debt" || kind === "savings") return c.parent_id !== null;
+    if (kind === "debt" || kind === "savings") {
+      return c.parent_id !== null;
+    }
     return true;
   });
   const parsed = parseQuickAdd(text);
@@ -192,9 +196,12 @@ export function QuickAdd() {
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className={cn(
+                  "rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                  (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                )}
               >
-                <option value="">Không danh mục</option>
+                <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
                 {filteredCats.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.icon} {c.name}
