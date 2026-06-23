@@ -59,7 +59,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       setNote(transaction.note || "");
       setOccurredAt(toDatetimeLocal(transaction.occurred_at));
       
-      // Set category ID after kind is set, checking if it's valid for current kind
+      // Set category ID, checking if it's valid for current kind
       if (transaction.category_id) {
         const categoryValid = categories.some(c => c.id === transaction.category_id && c.kind === transaction.kind);
         setCategoryId(categoryValid ? transaction.category_id : "");
@@ -68,6 +68,13 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       }
     }
   }, [transaction, open, categories]);
+
+  // When user manually changes kind, validate and clear invalid categoryId
+  useEffect(() => {
+    if (categoryId && !categories.some(c => c.id === categoryId && c.kind === kind)) {
+      setCategoryId("");
+    }
+  }, [kind, categoryId, categories]);
 
   const parsedPreview = useMemo(() => {
     const hasLetters = /[a-zA-Z]/g.test(amountStr);

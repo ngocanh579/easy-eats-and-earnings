@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Zap, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,16 +60,19 @@ export function QuickAdd() {
     },
   });
 
-  // Filter categories based on kind
+  // Filter categories based on kind with memoization
   // For debt/savings: only show child categories (parents are aggregate-only)
   // For income/expense: show all categories of that kind
-  const filteredCats = categories.filter((c) => {
-    if (c.kind !== kind) return false;
-    if (kind === "debt" || kind === "savings") {
-      return c.parent_id !== null;
-    }
-    return true;
-  });
+  // Memoization ensures dropdown re-renders immediately when kind changes
+  const filteredCats = useMemo(() => {
+    return categories.filter((c) => {
+      if (c.kind !== kind) return false;
+      if (kind === "debt" || kind === "savings") {
+        return c.parent_id !== null;
+      }
+      return true;
+    });
+  }, [kind, categories]);
   const parsed = parseQuickAdd(text);
 
   const create = useMutation({
