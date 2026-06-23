@@ -135,8 +135,10 @@ function DashboardPage() {
       const amt = Number(t.amount);
       if (t.kind === "income") inc += amt;
       else if (t.kind === "expense") exp += amt;
-      else if (t.kind === "debt") debt += amt;
-      else sav += amt;
+      else if (t.kind === "debt") {
+        // Sum all debt transactions (both Cho vay/lending and Đi vay/borrowing)
+        debt += Math.abs(amt);
+      } else sav += amt;
     }
     return { inc, exp, debt, sav };
   }, [txs.data, thisMonth]);
