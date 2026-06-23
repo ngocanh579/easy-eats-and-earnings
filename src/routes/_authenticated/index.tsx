@@ -119,8 +119,8 @@ function DashboardPage() {
     [balanceByWalletId],
   );
 
-  // Tổng tài sản = Ví + Tiết kiệm (Nợ là khoản phải trả/phải thu, không tính ở đây)
-  const total = walletSum + savingsPot;
+  // Tổng tài sản = chỉ tính từ Ví (Tiết kiệm và Nợ được tính riêng)
+  const total = walletSum;
 
   const now = new Date();
   const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
