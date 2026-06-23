@@ -179,6 +179,7 @@ export type Database = {
           color: string | null
           created_at: string
           currency: string
+          current_balance: number
           icon: string | null
           id: string
           initial_balance: number
@@ -191,6 +192,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           currency?: string
+          current_balance?: number
           icon?: string | null
           id?: string
           initial_balance?: number
@@ -203,6 +205,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           currency?: string
+          current_balance?: number
           icon?: string | null
           id?: string
           initial_balance?: number
@@ -218,7 +221,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      _tx_wallet_delta: {
+        Args: { _amount: number; _category_id: string; _kind: string }
+        Returns: number
+      }
     }
     Enums: {
       budget_period: "1" | "3" | "6" | "12"
