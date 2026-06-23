@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Wallet as WalletIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND, parseAmountShortcut } from "@/lib/format";
+import { buildWalletBalanceMap } from "@/lib/wallet-balance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +62,29 @@ function WalletsPage() {
       return data;
     },
   });
+
+  const bankWalletIds = useMemo(
+    () => (wallets.data ?? []).filter((w) => w.type === "bank").map((w) => w.id),
+    [wallets.data],
+  );
+
+  const bankTransactions = useQuery({
+    queryKey: ["transactions", "bank-balances", bankWalletIds],
+    enabled: bankWalletIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("wallet_id,kind,amount")
+        .in("wallet_id", bankWalletIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const balanceByWalletId = useMemo(
+    () => buildWalletBalanceMap(wallets.data ?? [], bankTransactions.data ?? []),
+    [wallets.data, bankTransactions.data],
+  );
 
   const create = useMutation({
     mutationFn: async () => {
@@ -136,7 +160,7 @@ function WalletsPage() {
               </div>
             </div>
             <p className="mt-4 font-display text-2xl font-semibold">
-              {formatVND(Number((w as any).current_balance ?? 0))}
+              {formatVND(balanceByWalletId.get(w.id) ?? 0)}
             </p>
             <button
               onClick={() => {

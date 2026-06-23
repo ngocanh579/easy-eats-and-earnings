@@ -23,6 +23,7 @@ import { formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { EditTransactionModal, TransactionToEdit } from "@/components/EditTransactionModal";
 import { toast } from "sonner";
+import { buildWalletBalanceMap } from "@/lib/wallet-balance";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: DashboardPage,
@@ -59,6 +60,22 @@ function useDashboardData() {
       return (data ?? []) as Tx[];
     },
   });
+  const bankWalletIds = useMemo(
+    () => (wallets.data ?? []).filter((w) => w.type === "bank").map((w) => w.id),
+    [wallets.data],
+  );
+  const bankTxs = useQuery({
+    queryKey: ["transactions", "bank-balances", bankWalletIds],
+    enabled: bankWalletIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("wallet_id,kind,amount")
+        .in("wallet_id", bankWalletIds);
+      if (error) throw error;
+      return (data ?? []) as Pick<Tx, "wallet_id" | "kind" | "amount">[];
+    },
+  });
   const cats = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
@@ -69,11 +86,11 @@ function useDashboardData() {
       return data;
     },
   });
-  return { wallets, txs, cats };
+  return { wallets, txs, bankTxs, cats };
 }
 
 function DashboardPage() {
-  const { wallets, txs, cats } = useDashboardData();
+  const { wallets, txs, bankTxs, cats } = useDashboardData();
   const [hidden, setHidden] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
   const [selectedView, setSelectedView] = useState<{
@@ -98,12 +115,8 @@ function DashboardPage() {
   // Read wallet balances directly from database (single source of truth)
   // Wallet balance is now updated by database triggers when transactions change
   const balanceByWalletId = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const w of wallets.data ?? []) {
-      map.set(w.id, Number((w as any).current_balance ?? 0));
-    }
-    return map;
-  }, [wallets.data]);
+    return buildWalletBalanceMap(wallets.data ?? [], bankTxs.data ?? []);
+  }, [wallets.data, bankTxs.data]);
 
   // Quỹ tiết kiệm = tổng các giao dịch kind="savings" (gửi vào dương, rút ra âm)
   const savingsPot = useMemo(
