@@ -56,11 +56,25 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       setAmountStr(transaction.amount.toString());
       setKind(transaction.kind);
       setWalletId(transaction.wallet_id);
-      setCategoryId(transaction.category_id || "");
       setNote(transaction.note || "");
       setOccurredAt(toDatetimeLocal(transaction.occurred_at));
+      
+      // Set category ID, checking if it's valid for current kind
+      if (transaction.category_id) {
+        const categoryValid = categories.some(c => c.id === transaction.category_id && c.kind === transaction.kind);
+        setCategoryId(categoryValid ? transaction.category_id : "");
+      } else {
+        setCategoryId("");
+      }
     }
-  }, [transaction, open]);
+  }, [transaction, open, categories]);
+
+  // When user manually changes kind, validate and clear invalid categoryId
+  useEffect(() => {
+    if (categoryId && !categories.some(c => c.id === categoryId && c.kind === kind)) {
+      setCategoryId("");
+    }
+  }, [kind, categoryId, categories]);
 
   const parsedPreview = useMemo(() => {
     const hasLetters = /[a-zA-Z]/g.test(amountStr);
@@ -85,7 +99,18 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
     }
   };
 
-  const filteredCats = categories.filter((c) => c.kind === kind);
+  // Filter categories based on kind
+  // For debt/savings: only show child categories (parents are aggregate-only)
+  // For income/expense: show all categories of that kind
+  const filteredCats = useMemo(() => {
+    return categories.filter((c) => {
+      if (c.kind !== kind) return false;
+      if (kind === "debt" || kind === "savings") {
+        return c.parent_id !== null;
+      }
+      return true;
+    });
+  }, [kind, categories]);
 
   const update = useMutation({
     mutationFn: async () => {
@@ -231,28 +256,17 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
                  <select
                    value={categoryId}
                    onChange={(e) => setCategoryId(e.target.value)}
-                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                   className={cn(
+                     "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                     (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                   )}
                  >
-                   <option value="">Không danh mục</option>
-                   {filteredCats.filter(c => !c.parent_id).map((parent) => {
-                     const children = filteredCats.filter(c => c.parent_id === parent.id);
-                     if (children.length > 0) {
-                       return (
-                         <optgroup key={parent.id} label={`${parent.icon} ${parent.name}`}>
-                           {children.map(child => (
-                             <option key={child.id} value={child.id}>
-                               {child.icon} {child.name}
-                             </option>
-                           ))}
-                         </optgroup>
-                       );
-                     }
-                     return (
-                       <option key={parent.id} value={parent.id}>
-                         {parent.icon} {parent.name}
-                       </option>
-                     );
-                   })}
+                   <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
+                   {filteredCats.map((c) => (
+                     <option key={c.id} value={c.id}>
+                       {c.icon} {c.name}
+                     </option>
+                   ))}
                  </select>
              </div>
           </div>

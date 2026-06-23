@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Zap, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,12 +60,19 @@ export function QuickAdd() {
     },
   });
 
-  // For debt/savings, only allow selecting child categories (parents are aggregate-only)
-  const filteredCats = categories.filter((c) => {
-    if (c.kind !== kind) return false;
-    if (kind === "debt" || kind === "savings") return c.parent_id !== null;
-    return true;
-  });
+  // Filter categories based on kind with memoization
+  // For debt/savings: only show child categories (parents are aggregate-only)
+  // For income/expense: show all categories of that kind
+  // Memoization ensures dropdown re-renders immediately when kind changes
+  const filteredCats = useMemo(() => {
+    return categories.filter((c) => {
+      if (c.kind !== kind) return false;
+      if (kind === "debt" || kind === "savings") {
+        return c.parent_id !== null;
+      }
+      return true;
+    });
+  }, [kind, categories]);
   const parsed = parseQuickAdd(text);
 
   const create = useMutation({
@@ -199,28 +206,17 @@ export function QuickAdd() {
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className={cn(
+                  "rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                  (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                )}
               >
-                <option value="">Không danh mục</option>
-                {filteredCats.filter(c => !c.parent_id).map((parent) => {
-                  const children = filteredCats.filter(c => c.parent_id === parent.id);
-                  if (children.length > 0) {
-                    return (
-                      <optgroup key={parent.id} label={`${parent.icon} ${parent.name}`}>
-                        {children.map(child => (
-                          <option key={child.id} value={child.id}>
-                            {child.icon} {child.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  }
-                  return (
-                    <option key={parent.id} value={parent.id}>
-                      {parent.icon} {parent.name}
-                    </option>
-                  );
-                })}
+                <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
+                {filteredCats.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.icon} {c.name}
+                  </option>
+                ))}
               </select>
             </div>
 
