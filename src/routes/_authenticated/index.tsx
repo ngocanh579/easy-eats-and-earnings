@@ -486,11 +486,12 @@ function DashboardPage() {
               ? kindTxs
               : kindTxs.filter((t) => t.category_id === activeCatId);
 
-          const sumOf = (catId: string | null) =>
-            (catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId)).reduce(
-              (a, t) => a + Number(t.amount),
-              0,
-            );
+          const sumOf = (catId: string | null) => {
+            const base = catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId);
+            // For debt, exclude already-paid debts from the total
+            const eligible = kind === "debt" ? base.filter((t) => !t.is_paid) : base;
+            return eligible.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+          };
 
           const totalAll = sumOf(null);
 
