@@ -537,11 +537,11 @@ function DashboardPage() {
                         {mask(formatVND(totalAll))}
                       </p>
                     </div>
-                    <div className="mb-3 flex flex-wrap gap-1.5">
+                    <div className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <button
                         onClick={() => setSelectedView({ kind, categoryId: null })}
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                          "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                           !activeCatId
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground hover:bg-accent",
@@ -554,7 +554,7 @@ function DashboardPage() {
                           key={c.id}
                           onClick={() => setSelectedView({ kind, categoryId: c.id })}
                           className={cn(
-                            "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                            "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                             activeCatId === c.id
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted text-muted-foreground hover:bg-accent",
