@@ -20,6 +20,7 @@ function TransactionsPage() {
   const [walletFilter, setWalletFilter] = useState<string>("");
   const [catFilter, setCatFilter] = useState<string>("");
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
+  const [visibleGroups, setVisibleGroups] = useState(5);
 
   const wallets = useQuery({
     queryKey: ["wallets"],
