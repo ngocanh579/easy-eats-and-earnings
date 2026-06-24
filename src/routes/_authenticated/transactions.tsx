@@ -173,16 +173,16 @@ function TransactionsPage() {
       )}
 
       <div className="space-y-4">
-        {filtered.map((g) => (
+        {filtered.slice(0, visibleGroups).map((g) => (
           <div
             key={g.key}
             className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]"
           >
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <p className="text-sm font-medium capitalize">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <p className="truncate text-sm font-medium capitalize">
                 {formatGroupLabel(g.key)}
               </p>
-              <div className="flex gap-3 text-xs">
+              <div className="flex shrink-0 gap-3 text-xs">
                 <span className="text-success">+{formatVND(g.inc)}</span>
                 <span className="text-destructive">-{formatVND(g.exp)}</span>
               </div>
@@ -195,10 +195,10 @@ function TransactionsPage() {
                 return (
                   <li
                     key={t.id}
-                    className="group flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent/50"
+                    className="group flex cursor-pointer items-center gap-2 px-3 py-3 hover:bg-accent/50 sm:px-4 sm:gap-3"
                     onClick={() => setEditingTx(t as TransactionToEdit)}
                   >
-                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-lg">
                       {cat?.icon ?? "💸"}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -217,7 +217,7 @@ function TransactionsPage() {
                     </div>
                     <div
                       className={cn(
-                        "font-display text-sm font-semibold mr-1",
+                        "font-display text-sm font-semibold shrink-0",
                         t.kind === "income" && "text-success",
                         t.kind === "expense" && "text-destructive",
                       )}
@@ -225,7 +225,7 @@ function TransactionsPage() {
                       {sign}
                       {formatVND(Number(t.amount))}
                     </div>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex shrink-0 items-center gap-0.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -255,6 +255,14 @@ function TransactionsPage() {
             </ul>
           </div>
         ))}
+        {filtered.length > visibleGroups && (
+          <button
+            onClick={() => setVisibleGroups((c) => c + 5)}
+            className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            Tải thêm ({filtered.length - visibleGroups} nhóm còn lại)
+          </button>
+        )}
       </div>
 
       <EditTransactionModal
