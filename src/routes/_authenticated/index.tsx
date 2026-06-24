@@ -37,6 +37,8 @@ type Tx = {
   amount: number;
   note: string | null;
   occurred_at: string;
+  is_paid?: boolean;
+  paid_at?: string | null;
 };
 
 function useDashboardData() {
