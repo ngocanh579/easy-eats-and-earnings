@@ -113,6 +113,19 @@ function DashboardPage() {
     },
     onError: (e: Error) => toast.error(friendlyError(e)),
   });
+  const togglePaid = useMutation({
+    mutationFn: async ({ id, paid }: { id: string; paid: boolean }) => {
+      const { error } = await supabase
+        .from("transactions")
+        .update({ is_paid: paid, paid_at: paid ? new Date().toISOString() : null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+    onError: (e: Error) => toast.error(friendlyError(e)),
+  });
 
   // Read wallet balances directly from database (single source of truth)
   // Wallet balance is now updated by database triggers when transactions change
