@@ -119,14 +119,14 @@ function TransactionsPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-xl border border-border bg-card p-1">
+      <div className="-mx-3 flex items-center gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex shrink-0 rounded-xl border border-border bg-card p-1">
           {(["day", "month", "year"] as TimeRange[]).map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-medium",
+                "rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap",
                 range === r
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -136,13 +136,13 @@ function TransactionsPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
           <Filter className="h-3.5 w-3.5" />
         </div>
         <select
           value={walletFilter}
           onChange={(e) => setWalletFilter(e.target.value)}
-          className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Mọi ví</option>
           {(wallets.data ?? []).map((w) => (
@@ -154,7 +154,7 @@ function TransactionsPage() {
         <select
           value={catFilter}
           onChange={(e) => setCatFilter(e.target.value)}
-          className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Mọi danh mục</option>
           {(cats.data ?? []).map((c) => (
