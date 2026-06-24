@@ -577,83 +577,92 @@ function DashboardPage() {
                       Chưa có giao dịch nào thuộc nhóm này.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-border">
-                      {filteredTxs.map((t) => {
-                        const cat = allCats.find((c) => c.id === t.category_id);
-                        const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
-                        return (
-                          <li
-                            key={t.id}
-                            className={cn(
-                              "flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2",
-                              kind === "debt" && t.is_paid && "opacity-60",
-                            )}
-                          >
-                            <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
-                              {cat?.icon ?? "🏷️"}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p
-                                className={cn(
-                                  "truncate text-sm font-medium",
-                                  kind === "debt" && t.is_paid && "line-through",
-                                )}
-                              >
-                                {t.note || cat?.name || "Giao dịch"}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {w?.name} • {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
-                                {kind === "debt" && t.is_paid && t.paid_at && (
-                                  <>
-                                    {" "}
-                                    • Đã trả {new Date(t.paid_at).toLocaleDateString("vi-VN")}
-                                  </>
-                                )}
-                              </p>
-                            </div>
-                            <div className="font-display text-sm font-semibold text-foreground mr-2">
-                              {mask(formatVND(Math.abs(Number(t.amount))))}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {kind === "debt" && (
-                                <label
-                                  className="flex items-center gap-1 cursor-pointer rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                                  title="Đã trả nợ"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={!!t.is_paid}
-                                    onChange={(e) =>
-                                      togglePaid.mutate({ id: t.id, paid: e.target.checked })
-                                    }
-                                    className="h-3.5 w-3.5 accent-success"
-                                  />
-                                  <span>Đã trả</span>
-                                </label>
+                    <>
+                      <ul className="divide-y divide-border">
+                        {filteredTxs.slice(0, modalVisibleCount).map((t) => {
+                          const cat = allCats.find((c) => c.id === t.category_id);
+                          const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
+                          return (
+                            <li
+                              key={t.id}
+                              className={cn(
+                                "flex items-center gap-2 py-3 hover:bg-accent/30 rounded-lg px-2",
+                                kind === "debt" && t.is_paid && "opacity-60",
                               )}
-                              <button
-                                onClick={() => setEditingTx(t as TransactionToEdit)}
-                                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                                aria-label="Sửa giao dịch"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
-                                    del.mutate(t.id);
-                                  }
-                                }}
-                                className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                aria-label="Xoá giao dịch"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                            >
+                              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-lg">
+                                {cat?.icon ?? "🏷️"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={cn(
+                                    "truncate text-sm font-medium",
+                                    kind === "debt" && t.is_paid && "line-through",
+                                  )}
+                                >
+                                  {t.note || cat?.name || "Giao dịch"}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {w?.name} • {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                                  {kind === "debt" && t.is_paid && t.paid_at && (
+                                    <>
+                                      {" "}
+                                      • Đã trả {new Date(t.paid_at).toLocaleDateString("vi-VN")}
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                              <div className="font-display text-sm font-semibold text-foreground shrink-0">
+                                {mask(formatVND(Math.abs(Number(t.amount))))}
+                              </div>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                {kind === "debt" && (
+                                  <label
+                                    className="flex items-center gap-1 cursor-pointer rounded-lg px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                                    title="Đã trả nợ"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={!!t.is_paid}
+                                      onChange={(e) =>
+                                        togglePaid.mutate({ id: t.id, paid: e.target.checked })
+                                      }
+                                      className="h-3.5 w-3.5 accent-success"
+                                    />
+                                  </label>
+                                )}
+                                <button
+                                  onClick={() => setEditingTx(t as TransactionToEdit)}
+                                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  aria-label="Sửa giao dịch"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm("Bạn có chắc chắn muốn xoá giao dịch này?")) {
+                                      del.mutate(t.id);
+                                    }
+                                  }}
+                                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                  aria-label="Xoá giao dịch"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {filteredTxs.length > modalVisibleCount && (
+                        <button
+                          onClick={() => setModalVisibleCount((c) => c + 20)}
+                          className="mt-3 w-full rounded-xl border border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          Tải thêm ({filteredTxs.length - modalVisibleCount} giao dịch còn lại)
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
