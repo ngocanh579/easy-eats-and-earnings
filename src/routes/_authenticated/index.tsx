@@ -99,6 +99,10 @@ function DashboardPage() {
     kind: "income" | "expense" | "debt" | "savings";
     categoryId?: string | null;
   } | null>(null);
+  const [modalVisibleCount, setModalVisibleCount] = useState(20);
+  useEffect(() => {
+    setModalVisibleCount(20);
+  }, [selectedView?.kind, selectedView?.categoryId]);
 
   const qc = useQueryClient();
   const del = useMutation({
