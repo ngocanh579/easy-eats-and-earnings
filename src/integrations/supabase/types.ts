@@ -102,9 +102,11 @@ export type Database = {
           category_id: string | null
           created_at: string
           id: string
+          is_paid: boolean
           kind: Database["public"]["Enums"]["category_kind"]
           note: string | null
           occurred_at: string
+          paid_at: string | null
           user_id: string
           wallet_id: string
         }
@@ -113,9 +115,11 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           id?: string
+          is_paid?: boolean
           kind: Database["public"]["Enums"]["category_kind"]
           note?: string | null
           occurred_at?: string
+          paid_at?: string | null
           user_id: string
           wallet_id: string
         }
@@ -124,9 +128,11 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           id?: string
+          is_paid?: boolean
           kind?: Database["public"]["Enums"]["category_kind"]
           note?: string | null
           occurred_at?: string
+          paid_at?: string | null
           user_id?: string
           wallet_id?: string
         }

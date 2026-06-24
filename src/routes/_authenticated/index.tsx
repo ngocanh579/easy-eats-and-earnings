@@ -37,6 +37,8 @@ type Tx = {
   amount: number;
   note: string | null;
   occurred_at: string;
+  is_paid?: boolean;
+  paid_at?: string | null;
 };
 
 function useDashboardData() {
@@ -111,6 +113,19 @@ function DashboardPage() {
     },
     onError: (e: Error) => toast.error(friendlyError(e)),
   });
+  const togglePaid = useMutation({
+    mutationFn: async ({ id, paid }: { id: string; paid: boolean }) => {
+      const { error } = await supabase
+        .from("transactions")
+        .update({ is_paid: paid, paid_at: paid ? new Date().toISOString() : null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+    onError: (e: Error) => toast.error(friendlyError(e)),
+  });
 
   // Read wallet balances directly from database (single source of truth)
   // Wallet balance is now updated by database triggers when transactions change
@@ -152,7 +167,7 @@ function DashboardPage() {
       const inThisMonth = monthKey(new Date(t.occurred_at)) === thisMonth;
       if (t.kind === "income" && inThisMonth) inc += amt;
       else if (t.kind === "expense" && inThisMonth) exp += amt;
-      else if (t.kind === "debt") debt += Math.abs(amt);
+      else if (t.kind === "debt" && !t.is_paid) debt += Math.abs(amt);
       else if (t.kind === "savings") sav += amt;
     }
     return { inc, exp, debt, sav };
@@ -471,11 +486,12 @@ function DashboardPage() {
               ? kindTxs
               : kindTxs.filter((t) => t.category_id === activeCatId);
 
-          const sumOf = (catId: string | null) =>
-            (catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId)).reduce(
-              (a, t) => a + Number(t.amount),
-              0,
-            );
+          const sumOf = (catId: string | null) => {
+            const base = catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId);
+            // For debt, exclude already-paid debts from the total
+            const eligible = kind === "debt" ? base.filter((t) => !t.is_paid) : base;
+            return eligible.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+          };
 
           const totalAll = sumOf(null);
 
@@ -564,23 +580,53 @@ function DashboardPage() {
                         return (
                           <li
                             key={t.id}
-                            className="flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2"
+                            className={cn(
+                              "flex items-center gap-3 py-3 hover:bg-accent/30 rounded-lg px-2",
+                              kind === "debt" && t.is_paid && "opacity-60",
+                            )}
                           >
                             <div className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-lg">
                               {cat?.icon ?? "🏷️"}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
+                              <p
+                                className={cn(
+                                  "truncate text-sm font-medium",
+                                  kind === "debt" && t.is_paid && "line-through",
+                                )}
+                              >
                                 {t.note || cat?.name || "Giao dịch"}
                               </p>
                               <p className="truncate text-xs text-muted-foreground">
                                 {w?.name} • {new Date(t.occurred_at).toLocaleDateString("vi-VN")}
+                                {kind === "debt" && t.is_paid && t.paid_at && (
+                                  <>
+                                    {" "}
+                                    • Đã trả {new Date(t.paid_at).toLocaleDateString("vi-VN")}
+                                  </>
+                                )}
                               </p>
                             </div>
                             <div className="font-display text-sm font-semibold text-foreground mr-2">
-                              {mask(formatVND(Number(t.amount)))}
+                              {mask(formatVND(Math.abs(Number(t.amount))))}
                             </div>
                             <div className="flex items-center gap-1">
+                              {kind === "debt" && (
+                                <label
+                                  className="flex items-center gap-1 cursor-pointer rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  title="Đã trả nợ"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!t.is_paid}
+                                    onChange={(e) =>
+                                      togglePaid.mutate({ id: t.id, paid: e.target.checked })
+                                    }
+                                    className="h-3.5 w-3.5 accent-success"
+                                  />
+                                  <span>Đã trả</span>
+                                </label>
+                              )}
                               <button
                                 onClick={() => setEditingTx(t as TransactionToEdit)}
                                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
