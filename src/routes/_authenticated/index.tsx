@@ -167,7 +167,7 @@ function DashboardPage() {
       const inThisMonth = monthKey(new Date(t.occurred_at)) === thisMonth;
       if (t.kind === "income" && inThisMonth) inc += amt;
       else if (t.kind === "expense" && inThisMonth) exp += amt;
-      else if (t.kind === "debt") debt += Math.abs(amt);
+      else if (t.kind === "debt" && !t.is_paid) debt += Math.abs(amt);
       else if (t.kind === "savings") sav += amt;
     }
     return { inc, exp, debt, sav };
