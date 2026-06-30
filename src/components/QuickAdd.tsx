@@ -7,13 +7,14 @@ import { parseQuickAdd, formatVND } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type Kind = "expense" | "income" | "debt" | "savings";
+type Kind = "expense" | "income" | "debt" | "savings" | "transfer";
 
 const KIND_LABEL: Record<Kind, string> = {
   expense: "Chi tiêu",
   income: "Thu nhập",
   debt: "Nợ",
   savings: "Tiết kiệm",
+  transfer: "Chuyển tiền",
 };
 
 const toDatetimeLocal = (dateString: string) => {
