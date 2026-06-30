@@ -48,6 +48,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
   const [amountStr, setAmountStr] = useState("");
   const [kind, setKind] = useState<Kind>("expense");
   const [walletId, setWalletId] = useState<string>("");
+  const [toWalletId, setToWalletId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [note, setNote] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
