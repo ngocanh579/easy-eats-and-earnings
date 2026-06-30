@@ -7,13 +7,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatVND, parseAmountShortcut } from "@/lib/format";
 
-type Kind = "expense" | "income" | "debt" | "savings";
+type Kind = "expense" | "income" | "debt" | "savings" | "transfer";
 
 const KIND_LABEL: Record<Kind, string> = {
   expense: "Chi tiêu",
   income: "Thu nhập",
   debt: "Nợ",
   savings: "Tiết kiệm",
+  transfer: "Chuyển tiền",
 };
 
 export type TransactionToEdit = {
@@ -24,6 +25,7 @@ export type TransactionToEdit = {
   amount: number;
   note: string | null;
   occurred_at: string;
+  transfer_to_wallet_id?: string | null;
 };
 
 interface EditTransactionModalProps {
