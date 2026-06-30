@@ -33,12 +33,13 @@ type Tx = {
   id: string;
   wallet_id: string;
   category_id: string | null;
-  kind: "expense" | "income" | "debt" | "savings";
+  kind: "expense" | "income" | "debt" | "savings" | "transfer";
   amount: number;
   note: string | null;
   occurred_at: string;
   is_paid?: boolean;
   paid_at?: string | null;
+  transfer_to_wallet_id?: string | null;
 };
 
 function useDashboardData() {
