@@ -123,16 +123,21 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       if (isNaN(amount) || amount <= 0) throw new Error("Số tiền không hợp lệ.");
       if (!walletId) throw new Error("Vui lòng chọn ví.");
       if (!occurredAt) throw new Error("Vui lòng chọn thời gian.");
+      if (kind === "transfer") {
+        if (!toWalletId) throw new Error("Vui lòng chọn ví nhận.");
+        if (toWalletId === walletId) throw new Error("Ví nguồn và ví nhận phải khác nhau.");
+      }
 
       const { error } = await supabase
         .from("transactions")
         .update({
           wallet_id: walletId,
-          category_id: categoryId || null,
+          category_id: kind === "transfer" ? null : (categoryId || null),
           kind,
           amount,
           note: note || null,
           occurred_at: new Date(occurredAt).toISOString(),
+          transfer_to_wallet_id: kind === "transfer" ? toWalletId : null,
         })
         .eq("id", transaction.id);
 
@@ -140,7 +145,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã cập nhật giao dịch");
       onClose();
     },
