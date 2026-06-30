@@ -588,7 +588,9 @@ function DashboardPage() {
                               key={t.id}
                               className={cn(
                                 "flex items-center gap-2 py-3 hover:bg-accent/30 rounded-lg px-2",
-                                kind === "debt" && t.is_paid && "opacity-60",
+                                (kind === "debt" || kind === "savings") &&
+                                  t.is_paid &&
+                                  "opacity-60",
                               )}
                             >
                               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-lg">
@@ -598,7 +600,9 @@ function DashboardPage() {
                                 <p
                                   className={cn(
                                     "truncate text-sm font-medium",
-                                    kind === "debt" && t.is_paid && "line-through",
+                                    (kind === "debt" || kind === "savings") &&
+                                      t.is_paid &&
+                                      "line-through",
                                   )}
                                 >
                                   {t.note || cat?.name || "Giao dịch"}
@@ -611,16 +615,22 @@ function DashboardPage() {
                                       • Đã trả {new Date(t.paid_at).toLocaleDateString("vi-VN")}
                                     </>
                                   )}
+                                  {kind === "savings" && t.is_paid && t.paid_at && (
+                                    <>
+                                      {" "}
+                                      • Đã rút {new Date(t.paid_at).toLocaleDateString("vi-VN")}
+                                    </>
+                                  )}
                                 </p>
                               </div>
                               <div className="font-display text-sm font-semibold text-foreground shrink-0">
                                 {mask(formatVND(Math.abs(Number(t.amount))))}
                               </div>
                               <div className="flex items-center gap-0.5 shrink-0">
-                                {kind === "debt" && (
+                                {(kind === "debt" || kind === "savings") && (
                                   <label
                                     className="flex items-center gap-1 cursor-pointer rounded-lg px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                                    title="Đã trả nợ"
+                                    title={kind === "debt" ? "Đã trả nợ" : "Đã rút tiết kiệm"}
                                   >
                                     <input
                                       type="checkbox"
