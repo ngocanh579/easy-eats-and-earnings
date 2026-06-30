@@ -217,7 +217,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
              />
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
             {(Object.keys(KIND_LABEL) as Kind[]).map((k) => (
               <button
                 key={k}
@@ -246,7 +246,9 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
 
           <div className="grid grid-cols-2 gap-2">
              <div>
-                <label className="mb-1 block text-sm font-medium text-muted-foreground">Ví</label>
+                <label className="mb-1 block text-sm font-medium text-muted-foreground">
+                  {kind === "transfer" ? "Ví nguồn" : "Ví"}
+                </label>
                 <select
                   value={walletId}
                   onChange={(e) => setWalletId(e.target.value)}
@@ -260,24 +262,45 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
                   ))}
                 </select>
              </div>
-             <div>
-                 <label className="mb-1 block text-sm font-medium text-muted-foreground">Danh mục</label>
+             {kind === "transfer" ? (
+               <div>
+                 <label className="mb-1 block text-sm font-medium text-muted-foreground">Ví nhận</label>
                  <select
-                   value={categoryId}
-                   onChange={(e) => setCategoryId(e.target.value)}
+                   value={toWalletId}
+                   onChange={(e) => setToWalletId(e.target.value)}
                    className={cn(
                      "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
-                     (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                     !toWalletId ? "border-red-500" : "border-input",
                    )}
                  >
-                   <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
-                   {filteredCats.map((c) => (
-                     <option key={c.id} value={c.id}>
-                       {c.icon} {c.name}
+                   <option value="">Chọn ví nhận</option>
+                   {wallets.filter((w) => w.id !== walletId).map((w) => (
+                     <option key={w.id} value={w.id}>
+                       {w.icon} {w.name}
                      </option>
                    ))}
                  </select>
-             </div>
+               </div>
+             ) : (
+               <div>
+                  <label className="mb-1 block text-sm font-medium text-muted-foreground">Danh mục</label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className={cn(
+                      "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                      (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                    )}
+                  >
+                    <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
+                    {filteredCats.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </select>
+               </div>
+             )}
           </div>
         </div>
 
