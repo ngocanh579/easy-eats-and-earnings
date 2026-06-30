@@ -60,10 +60,10 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       setAmountStr(transaction.amount.toString());
       setKind(transaction.kind);
       setWalletId(transaction.wallet_id);
+      setToWalletId(transaction.transfer_to_wallet_id || "");
       setNote(transaction.note || "");
       setOccurredAt(toDatetimeLocal(transaction.occurred_at));
-      
-      // Set category ID, checking if it's valid for current kind
+
       if (transaction.category_id) {
         const categoryValid = categories.some(c => c.id === transaction.category_id && c.kind === transaction.kind);
         setCategoryId(categoryValid ? transaction.category_id : "");
