@@ -73,10 +73,10 @@ function useDashboardData() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("wallet_id,kind,amount")
-        .in("wallet_id", bankWalletIds);
+        .select("wallet_id,kind,amount,transfer_to_wallet_id")
+        .or(`wallet_id.in.(${bankWalletIds.join(",")}),transfer_to_wallet_id.in.(${bankWalletIds.join(",")})`);
       if (error) throw error;
-      return (data ?? []) as Pick<Tx, "wallet_id" | "kind" | "amount">[];
+      return (data ?? []) as Pick<Tx, "wallet_id" | "kind" | "amount" | "transfer_to_wallet_id">[];
     },
   });
   const cats = useQuery({
