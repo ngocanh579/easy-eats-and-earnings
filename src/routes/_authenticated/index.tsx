@@ -492,8 +492,9 @@ function DashboardPage() {
 
           const sumOf = (catId: string | null) => {
             const base = catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId);
-            // For debt, exclude already-paid debts from the total
-            const eligible = kind === "debt" ? base.filter((t) => !t.is_paid) : base;
+            // Nợ đã trả & tiết kiệm đã rút bị loại khỏi tổng
+            const eligible =
+              kind === "debt" || kind === "savings" ? base.filter((t) => !t.is_paid) : base;
             return eligible.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
           };
 
