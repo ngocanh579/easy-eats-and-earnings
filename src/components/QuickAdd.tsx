@@ -28,6 +28,7 @@ export function QuickAdd() {
   const [text, setText] = useState("");
   const [kind, setKind] = useState<Kind>("expense");
   const [walletId, setWalletId] = useState<string>("");
+  const [toWalletId, setToWalletId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocal(new Date().toISOString()));
   const qc = useQueryClient();
