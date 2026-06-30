@@ -2,12 +2,14 @@ import { friendlyError } from "@/lib/errors";
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Target } from "lucide-react";
+import { Plus, Trash2, Target, Wand2, Edit2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND, parseAmountShortcut } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BudgetDetailsModal } from "@/components/BudgetDetailsModal";
+import { IncomeModal } from "@/components/IncomeModal";
+import { BudgetGeneratorModal } from "@/components/BudgetGeneratorModal";
 
 export const Route = createFileRoute("/_authenticated/budgets")({
   component: BudgetsPage,
@@ -27,6 +29,8 @@ function BudgetsPage() {
   const [amount, setAmount] = useState("");
   const [period, setPeriod] = useState<"1" | "3" | "6" | "12">("1");
   const [viewingBudget, setViewingBudget] = useState<any>(null);
+  const [incomeModalOpen, setIncomeModalOpen] = useState(false);
+  const [generatorModalOpen, setGeneratorModalOpen] = useState(false);
 
   const parsedPreview = useMemo(() => {
     const hasLetters = /[a-zA-Z]/g.test(amount);
@@ -50,6 +54,18 @@ function BudgetsPage() {
       }
     }
   };
+
+  const user = useQuery({
+    queryKey: ["authUser"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      return user;
+    },
+  });
+
+  const monthlyIncome = (user.data?.user_metadata?.monthly_income as number) || 0;
 
   const cats = useQuery({
     queryKey: ["categories"],
@@ -145,18 +161,41 @@ function BudgetsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
-        <div>
+        <div className="flex-1">
           <h1 className="font-display text-2xl font-semibold lg:text-3xl">Ngân sách</h1>
           <p className="text-sm text-muted-foreground">
             Đặt giới hạn chi tiêu theo danh mục.
           </p>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-        >
-          <Plus className="h-4 w-4" /> Thêm
-        </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-accent/40 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Thu nhập:</span>
+            <span className="font-semibold">{monthlyIncome > 0 ? formatVND(monthlyIncome) : "Chưa set"}</span>
+            <button
+              onClick={() => setIncomeModalOpen(true)}
+              className="ml-1 rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+              title="Chỉnh sửa thu nhập"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            {monthlyIncome > 0 && (
+              <button
+                onClick={() => setGeneratorModalOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+              >
+                <Wand2 className="h-4 w-4" /> Tự động
+              </button>
+            )}
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              <Plus className="h-4 w-4" /> Thêm
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -296,6 +335,21 @@ function BudgetsPage() {
         onClose={() => setViewingBudget(null)}
         categories={cats.data ?? []}
         transactions={txs.data ?? []}
+      />
+
+      <IncomeModal
+        open={incomeModalOpen}
+        onClose={() => setIncomeModalOpen(false)}
+        currentIncome={monthlyIncome}
+        onSuccess={() => user.refetch()}
+      />
+
+      <BudgetGeneratorModal
+        open={generatorModalOpen}
+        onClose={() => setGeneratorModalOpen(false)}
+        monthlyIncome={monthlyIncome}
+        existingCategories={cats.data ?? []}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ["budgets"] })}
       />
     </div>
   );
