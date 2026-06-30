@@ -107,6 +107,7 @@ export type Database = {
           note: string | null
           occurred_at: string
           paid_at: string | null
+          transfer_to_wallet_id: string | null
           user_id: string
           wallet_id: string
         }
@@ -120,6 +121,7 @@ export type Database = {
           note?: string | null
           occurred_at?: string
           paid_at?: string | null
+          transfer_to_wallet_id?: string | null
           user_id: string
           wallet_id: string
         }
@@ -133,6 +135,7 @@ export type Database = {
           note?: string | null
           occurred_at?: string
           paid_at?: string | null
+          transfer_to_wallet_id?: string | null
           user_id?: string
           wallet_id?: string
         }
@@ -142,6 +145,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_transfer_to_wallet_id_fkey"
+            columns: ["transfer_to_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
             referencedColumns: ["id"]
           },
           {
@@ -234,7 +244,7 @@ export type Database = {
     }
     Enums: {
       budget_period: "1" | "3" | "6" | "12"
-      category_kind: "expense" | "income" | "debt" | "savings"
+      category_kind: "expense" | "income" | "debt" | "savings" | "transfer"
       wallet_type: "cash" | "bank" | "ewallet" | "savings" | "other"
     }
     CompositeTypes: {
@@ -364,7 +374,7 @@ export const Constants = {
   public: {
     Enums: {
       budget_period: ["1", "3", "6", "12"],
-      category_kind: ["expense", "income", "debt", "savings"],
+      category_kind: ["expense", "income", "debt", "savings", "transfer"],
       wallet_type: ["cash", "bank", "ewallet", "savings", "other"],
     },
   },
