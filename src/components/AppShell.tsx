@@ -14,10 +14,12 @@ import {
   Menu,
   PanelLeftClose,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 const NAV = [
   { to: "/", label: "Tổng quan", icon: LayoutDashboard },
@@ -36,6 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isDesktop, setIsDesktop] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1024px)");
