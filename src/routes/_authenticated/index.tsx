@@ -172,7 +172,7 @@ function DashboardPage() {
       if (t.kind === "income" && inThisMonth) inc += amt;
       else if (t.kind === "expense" && inThisMonth) exp += amt;
       else if (t.kind === "debt" && !t.is_paid) debt += Math.abs(amt);
-      else if (t.kind === "savings") sav += amt;
+      else if (t.kind === "savings" && !t.is_paid) sav += amt;
     }
     return { inc, exp, debt, sav };
   }, [txs.data, thisMonth]);
