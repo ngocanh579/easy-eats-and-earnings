@@ -340,7 +340,7 @@ function CategoriesPage() {
               className="mt-4 w-full rounded-xl border border-input bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
             />
             <div className="mt-3 grid grid-cols-8 gap-2 max-h-48 overflow-y-auto p-1">
-              {EMOJI.map((e) => (
+              {Array.from(new Set(EMOJI)).map((e) => (
                 <button
                   key={e}
                   onClick={() => setIcon(e)}
