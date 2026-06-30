@@ -199,33 +199,62 @@ export function QuickAdd() {
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <select
-                value={walletId}
-                onChange={(e) => setWalletId(e.target.value)}
-                className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Ví mặc định</option>
-                {wallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.icon} {w.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className={cn(
-                  "rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
-                  (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
-                )}
-              >
-                <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
-                {filteredCats.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.icon} {c.name}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  {kind === "transfer" ? "Ví nguồn" : "Ví"}
+                </label>
+                <select
+                  value={walletId}
+                  onChange={(e) => setWalletId(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Ví mặc định</option>
+                  {wallets.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.icon} {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {kind === "transfer" ? (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Ví nhận</label>
+                  <select
+                    value={toWalletId}
+                    onChange={(e) => setToWalletId(e.target.value)}
+                    className={cn(
+                      "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                      !toWalletId ? "border-red-500" : "border-input"
+                    )}
+                  >
+                    <option value="">Chọn ví nhận</option>
+                    {wallets.filter((w) => w.id !== walletId).map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.icon} {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Danh mục</label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className={cn(
+                      "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                      (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                    )}
+                  >
+                    <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
+                    {filteredCats.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="mt-3">

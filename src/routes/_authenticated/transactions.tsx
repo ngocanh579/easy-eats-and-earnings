@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Filter, Pencil } from "lucide-react";
+import { Trash2, Filter, Pencil, Search, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND } from "@/lib/format";
 import { toast } from "sonner";
@@ -19,6 +19,8 @@ function TransactionsPage() {
   const [range, setRange] = useState<TimeRange>("month");
   const [walletFilter, setWalletFilter] = useState<string>("");
   const [catFilter, setCatFilter] = useState<string>("");
+  const [kindFilter, setKindFilter] = useState<string>("");
+  const [searchText, setSearchText] = useState<string>("");
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
   const [visibleGroups, setVisibleGroups] = useState(5);
 
@@ -59,6 +61,29 @@ function TransactionsPage() {
     const arr = (txs.data ?? []).filter((t) => {
       if (walletFilter && t.wallet_id !== walletFilter) return false;
       if (catFilter && t.category_id !== catFilter) return false;
+      if (kindFilter && t.kind !== kindFilter) return false;
+      
+      // Search filter by note, wallet name, or category name
+      if (searchText.trim()) {
+        const search = searchText.toLowerCase();
+        const note = (t.note || "").toLowerCase();
+        const wallet = (wallets.data ?? []).find((w) => w.id === t.wallet_id);
+        const walletName = (wallet?.name || "").toLowerCase();
+        const category = (cats.data ?? []).find((c) => c.id === t.category_id);
+        const catName = (category?.name || "").toLowerCase();
+        
+        const toWallet = (wallets.data ?? []).find((w) => w.id === t.transfer_to_wallet_id);
+        const toWalletName = (toWallet?.name || "").toLowerCase();
+        
+        const hasMatch = 
+          note.includes(search) || 
+          walletName.includes(search) || 
+          catName.includes(search) || 
+          toWalletName.includes(search);
+        
+        if (!hasMatch) return false;
+      }
+      
       return true;
     });
 
@@ -83,7 +108,7 @@ function TransactionsPage() {
         .reduce((s, t) => s + Number(t.amount), 0);
       return { key, items, inc, exp };
     });
-  }, [txs.data, range, walletFilter, catFilter]);
+  }, [txs.data, range, walletFilter, catFilter, kindFilter, searchText, wallets.data, cats.data]);
 
   const del = useMutation({
     mutationFn: async (id: string) => {
@@ -120,50 +145,75 @@ function TransactionsPage() {
         </p>
       </div>
 
-      <div className="-mx-3 flex items-center gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex shrink-0 rounded-xl border border-border bg-card p-1">
-          {(["day", "month", "year"] as TimeRange[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap",
-                range === r
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {r === "day" ? "Ngày" : r === "month" ? "Tháng" : "Năm"}
-            </button>
-          ))}
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo ghi chú, ví, danh mục…"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
         </div>
-        <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
-          <Filter className="h-3.5 w-3.5" />
+
+        <div className="-mx-3 flex items-center gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex shrink-0 rounded-xl border border-border bg-card p-1">
+            {(["day", "month", "year"] as TimeRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap",
+                  range === r
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {r === "day" ? "Ngày" : r === "month" ? "Tháng" : "Năm"}
+              </button>
+            ))}
+          </div>
+          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+          </div>
+          <select
+            value={walletFilter}
+            onChange={(e) => setWalletFilter(e.target.value)}
+            className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">Mọi ví</option>
+            {(wallets.data ?? []).map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.icon} {w.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value)}
+            className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">Mọi loại</option>
+            <option value="expense">Chi tiêu</option>
+            <option value="income">Thu nhập</option>
+            <option value="transfer">Chuyển tiền</option>
+            <option value="debt">Nợ</option>
+            <option value="savings">Tiết kiệm</option>
+          </select>
+          <select
+            value={catFilter}
+            onChange={(e) => setCatFilter(e.target.value)}
+            className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">Mọi danh mục</option>
+            {(cats.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.icon} {c.name}
+              </option>
+            ))}
+          </select>
         </div>
-        <select
-          value={walletFilter}
-          onChange={(e) => setWalletFilter(e.target.value)}
-          className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">Mọi ví</option>
-          {(wallets.data ?? []).map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.icon} {w.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={catFilter}
-          onChange={(e) => setCatFilter(e.target.value)}
-          className="shrink-0 max-w-[45vw] rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">Mọi danh mục</option>
-          {(cats.data ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.icon} {c.name}
-            </option>
-          ))}
-        </select>
       </div>
 
       {filtered.length === 0 && (
@@ -191,7 +241,14 @@ function TransactionsPage() {
               {g.items.map((t) => {
                 const cat = (cats.data ?? []).find((c) => c.id === t.category_id);
                 const w = (wallets.data ?? []).find((x) => x.id === t.wallet_id);
+                const toW = (wallets.data ?? []).find((x) => x.id === t.transfer_to_wallet_id);
                 const sign = t.kind === "income" ? "+" : t.kind === "expense" ? "-" : "";
+                
+                const isTransfer = t.kind === "transfer";
+                const displayName = isTransfer 
+                  ? `${w?.name} → ${toW?.name}`
+                  : (t.note || cat?.name || "Giao dịch");
+                
                 return (
                   <li
                     key={t.id}
@@ -199,14 +256,20 @@ function TransactionsPage() {
                     onClick={() => setEditingTx(t as TransactionToEdit)}
                   >
                     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-lg">
-                      {cat?.icon ?? "💸"}
+                      {isTransfer ? (
+                        <span className="text-base">
+                          <ArrowRight className="h-5 w-5 text-primary" />
+                        </span>
+                      ) : (
+                        cat?.icon ?? "💸"
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
-                        {t.note || cat?.name || "Giao dịch"}
+                        {displayName}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {w?.name} •{" "}
+                        {!isTransfer && `${w?.name} •`} {" "}
                         {new Date(t.occurred_at).toLocaleString("vi-VN", {
                           hour: "2-digit",
                           minute: "2-digit",
@@ -220,6 +283,7 @@ function TransactionsPage() {
                         "font-display text-sm font-semibold shrink-0",
                         t.kind === "income" && "text-success",
                         t.kind === "expense" && "text-destructive",
+                        t.kind === "transfer" && "text-muted-foreground",
                       )}
                     >
                       {sign}
