@@ -7,13 +7,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatVND, parseAmountShortcut } from "@/lib/format";
 
-type Kind = "expense" | "income" | "debt" | "savings";
+type Kind = "expense" | "income" | "debt" | "savings" | "transfer";
 
 const KIND_LABEL: Record<Kind, string> = {
   expense: "Chi tiêu",
   income: "Thu nhập",
   debt: "Nợ",
   savings: "Tiết kiệm",
+  transfer: "Chuyển tiền",
 };
 
 export type TransactionToEdit = {
@@ -24,6 +25,7 @@ export type TransactionToEdit = {
   amount: number;
   note: string | null;
   occurred_at: string;
+  transfer_to_wallet_id?: string | null;
 };
 
 interface EditTransactionModalProps {
@@ -46,6 +48,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
   const [amountStr, setAmountStr] = useState("");
   const [kind, setKind] = useState<Kind>("expense");
   const [walletId, setWalletId] = useState<string>("");
+  const [toWalletId, setToWalletId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [note, setNote] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
@@ -57,10 +60,10 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       setAmountStr(transaction.amount.toString());
       setKind(transaction.kind);
       setWalletId(transaction.wallet_id);
+      setToWalletId(transaction.transfer_to_wallet_id || "");
       setNote(transaction.note || "");
       setOccurredAt(toDatetimeLocal(transaction.occurred_at));
-      
-      // Set category ID, checking if it's valid for current kind
+
       if (transaction.category_id) {
         const categoryValid = categories.some(c => c.id === transaction.category_id && c.kind === transaction.kind);
         setCategoryId(categoryValid ? transaction.category_id : "");
@@ -120,16 +123,21 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
       if (isNaN(amount) || amount <= 0) throw new Error("Số tiền không hợp lệ.");
       if (!walletId) throw new Error("Vui lòng chọn ví.");
       if (!occurredAt) throw new Error("Vui lòng chọn thời gian.");
+      if (kind === "transfer") {
+        if (!toWalletId) throw new Error("Vui lòng chọn ví nhận.");
+        if (toWalletId === walletId) throw new Error("Ví nguồn và ví nhận phải khác nhau.");
+      }
 
       const { error } = await supabase
         .from("transactions")
         .update({
           wallet_id: walletId,
-          category_id: categoryId || null,
+          category_id: kind === "transfer" ? null : (categoryId || null),
           kind,
           amount,
           note: note || null,
           occurred_at: new Date(occurredAt).toISOString(),
+          transfer_to_wallet_id: kind === "transfer" ? toWalletId : null,
         })
         .eq("id", transaction.id);
 
@@ -137,7 +145,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã cập nhật giao dịch");
       onClose();
     },
@@ -209,7 +217,7 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
              />
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
             {(Object.keys(KIND_LABEL) as Kind[]).map((k) => (
               <button
                 key={k}
@@ -238,7 +246,9 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
 
           <div className="grid grid-cols-2 gap-2">
              <div>
-                <label className="mb-1 block text-sm font-medium text-muted-foreground">Ví</label>
+                <label className="mb-1 block text-sm font-medium text-muted-foreground">
+                  {kind === "transfer" ? "Ví nguồn" : "Ví"}
+                </label>
                 <select
                   value={walletId}
                   onChange={(e) => setWalletId(e.target.value)}
@@ -252,24 +262,45 @@ export function EditTransactionModal({ transaction, open, onClose, wallets, cate
                   ))}
                 </select>
              </div>
-             <div>
-                 <label className="mb-1 block text-sm font-medium text-muted-foreground">Danh mục</label>
+             {kind === "transfer" ? (
+               <div>
+                 <label className="mb-1 block text-sm font-medium text-muted-foreground">Ví nhận</label>
                  <select
-                   value={categoryId}
-                   onChange={(e) => setCategoryId(e.target.value)}
+                   value={toWalletId}
+                   onChange={(e) => setToWalletId(e.target.value)}
                    className={cn(
                      "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
-                     (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                     !toWalletId ? "border-red-500" : "border-input",
                    )}
                  >
-                   <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
-                   {filteredCats.map((c) => (
-                     <option key={c.id} value={c.id}>
-                       {c.icon} {c.name}
+                   <option value="">Chọn ví nhận</option>
+                   {wallets.filter((w) => w.id !== walletId).map((w) => (
+                     <option key={w.id} value={w.id}>
+                       {w.icon} {w.name}
                      </option>
                    ))}
                  </select>
-             </div>
+               </div>
+             ) : (
+               <div>
+                  <label className="mb-1 block text-sm font-medium text-muted-foreground">Danh mục</label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className={cn(
+                      "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+                      (kind === "debt" || kind === "savings") && !categoryId ? "border-red-500" : "border-input"
+                    )}
+                  >
+                    <option value="">{filteredCats.length === 0 ? "Không có danh mục" : "Chọn danh mục"}</option>
+                    {filteredCats.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </select>
+               </div>
+             )}
           </div>
         </div>
 

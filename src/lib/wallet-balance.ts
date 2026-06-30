@@ -7,13 +7,14 @@ type WalletLike = {
 
 type TransactionLike = {
   wallet_id: string;
-  kind: "expense" | "income" | "debt" | "savings";
+  kind: "expense" | "income" | "debt" | "savings" | "transfer";
   amount: number | string;
+  transfer_to_wallet_id?: string | null;
 };
 
 /**
  * Bank wallets are treated as ledger-derived balances:
- * initial balance + income - expense.
+ * initial balance + income - expense (+ transfer in) - (transfer out).
  * Other wallet types keep using the stored current_balance value.
  */
 export function buildWalletBalanceMap(
@@ -25,17 +26,20 @@ export function buildWalletBalanceMap(
     wallets.filter((wallet) => wallet.type === "bank").map((wallet) => wallet.id),
   );
 
-  const bankDeltas = new Map<string, { income: number; expense: number }>();
+  const bankDeltas = new Map<string, number>();
+  const addDelta = (id: string, delta: number) => {
+    if (!bankWalletIds.has(id)) return;
+    bankDeltas.set(id, (bankDeltas.get(id) ?? 0) + delta);
+  };
+
   for (const tx of transactions) {
-    if (!bankWalletIds.has(tx.wallet_id)) continue;
-    if (tx.kind !== "income" && tx.kind !== "expense") continue;
-
-    const current = bankDeltas.get(tx.wallet_id) ?? { income: 0, expense: 0 };
     const amount = Number(tx.amount) || 0;
-
-    if (tx.kind === "income") current.income += amount;
-    if (tx.kind === "expense") current.expense += amount;
-    bankDeltas.set(tx.wallet_id, current);
+    if (tx.kind === "income") addDelta(tx.wallet_id, amount);
+    else if (tx.kind === "expense") addDelta(tx.wallet_id, -amount);
+    else if (tx.kind === "transfer") {
+      addDelta(tx.wallet_id, -amount);
+      if (tx.transfer_to_wallet_id) addDelta(tx.transfer_to_wallet_id, amount);
+    }
   }
 
   for (const wallet of wallets) {
@@ -47,8 +51,7 @@ export function buildWalletBalanceMap(
       continue;
     }
 
-    const bankDelta = bankDeltas.get(wallet.id) ?? { income: 0, expense: 0 };
-    map.set(wallet.id, initialBalance + bankDelta.income - bankDelta.expense);
+    map.set(wallet.id, initialBalance + (bankDeltas.get(wallet.id) ?? 0));
   }
 
   return map;

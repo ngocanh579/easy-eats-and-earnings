@@ -7,13 +7,14 @@ import { parseQuickAdd, formatVND } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type Kind = "expense" | "income" | "debt" | "savings";
+type Kind = "expense" | "income" | "debt" | "savings" | "transfer";
 
 const KIND_LABEL: Record<Kind, string> = {
   expense: "Chi tiêu",
   income: "Thu nhập",
   debt: "Nợ",
   savings: "Tiết kiệm",
+  transfer: "Chuyển tiền",
 };
 
 const toDatetimeLocal = (dateString: string) => {
@@ -27,6 +28,7 @@ export function QuickAdd() {
   const [text, setText] = useState("");
   const [kind, setKind] = useState<Kind>("expense");
   const [walletId, setWalletId] = useState<string>("");
+  const [toWalletId, setToWalletId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocal(new Date().toISOString()));
   const qc = useQueryClient();
@@ -88,22 +90,27 @@ export function QuickAdd() {
             : "Hãy chọn nhóm tiết kiệm",
         );
       }
+      if (kind === "transfer") {
+        if (!toWalletId) throw new Error("Hãy chọn ví nhận");
+        if (toWalletId === wid) throw new Error("Ví nguồn và ví nhận phải khác nhau");
+      }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Chưa đăng nhập");
       const { error } = await supabase.from("transactions").insert({
         user_id: u.user.id,
         wallet_id: wid,
-        category_id: categoryId || null,
+        category_id: kind === "transfer" ? null : (categoryId || null),
         kind,
         amount: parsed.amount,
         note: parsed.note || null,
         occurred_at: new Date(occurredAt).toISOString(),
+        transfer_to_wallet_id: kind === "transfer" ? toWalletId : null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã thêm giao dịch");
       setText("");
       setOpen(false);
