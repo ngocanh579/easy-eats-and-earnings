@@ -137,11 +137,11 @@ function DashboardPage() {
     return buildWalletBalanceMap(wallets.data ?? [], bankTxs.data ?? []);
   }, [wallets.data, bankTxs.data]);
 
-  // Quỹ tiết kiệm = tổng các giao dịch kind="savings" (gửi vào dương, rút ra âm)
+  // Quỹ tiết kiệm = tổng giao dịch kind="savings" chưa rút (is_paid=false)
   const savingsPot = useMemo(
     () =>
       (txs.data ?? [])
-        .filter((t) => t.kind === "savings")
+        .filter((t) => t.kind === "savings" && !t.is_paid)
         .reduce((a, t) => a + Number(t.amount), 0),
     [txs.data],
   );
@@ -172,7 +172,7 @@ function DashboardPage() {
       if (t.kind === "income" && inThisMonth) inc += amt;
       else if (t.kind === "expense" && inThisMonth) exp += amt;
       else if (t.kind === "debt" && !t.is_paid) debt += Math.abs(amt);
-      else if (t.kind === "savings") sav += amt;
+      else if (t.kind === "savings" && !t.is_paid) sav += amt;
     }
     return { inc, exp, debt, sav };
   }, [txs.data, thisMonth]);
@@ -492,8 +492,9 @@ function DashboardPage() {
 
           const sumOf = (catId: string | null) => {
             const base = catId === null ? kindTxs : kindTxs.filter((t) => t.category_id === catId);
-            // For debt, exclude already-paid debts from the total
-            const eligible = kind === "debt" ? base.filter((t) => !t.is_paid) : base;
+            // Nợ đã trả & tiết kiệm đã rút bị loại khỏi tổng
+            const eligible =
+              kind === "debt" || kind === "savings" ? base.filter((t) => !t.is_paid) : base;
             return eligible.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
           };
 
@@ -587,7 +588,9 @@ function DashboardPage() {
                               key={t.id}
                               className={cn(
                                 "flex items-center gap-2 py-3 hover:bg-accent/30 rounded-lg px-2",
-                                kind === "debt" && t.is_paid && "opacity-60",
+                                (kind === "debt" || kind === "savings") &&
+                                  t.is_paid &&
+                                  "opacity-60",
                               )}
                             >
                               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-lg">
@@ -597,7 +600,9 @@ function DashboardPage() {
                                 <p
                                   className={cn(
                                     "truncate text-sm font-medium",
-                                    kind === "debt" && t.is_paid && "line-through",
+                                    (kind === "debt" || kind === "savings") &&
+                                      t.is_paid &&
+                                      "line-through",
                                   )}
                                 >
                                   {t.note || cat?.name || "Giao dịch"}
@@ -610,16 +615,22 @@ function DashboardPage() {
                                       • Đã trả {new Date(t.paid_at).toLocaleDateString("vi-VN")}
                                     </>
                                   )}
+                                  {kind === "savings" && t.is_paid && t.paid_at && (
+                                    <>
+                                      {" "}
+                                      • Đã rút {new Date(t.paid_at).toLocaleDateString("vi-VN")}
+                                    </>
+                                  )}
                                 </p>
                               </div>
                               <div className="font-display text-sm font-semibold text-foreground shrink-0">
                                 {mask(formatVND(Math.abs(Number(t.amount))))}
                               </div>
                               <div className="flex items-center gap-0.5 shrink-0">
-                                {kind === "debt" && (
+                                {(kind === "debt" || kind === "savings") && (
                                   <label
                                     className="flex items-center gap-1 cursor-pointer rounded-lg px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                                    title="Đã trả nợ"
+                                    title={kind === "debt" ? "Đã trả nợ" : "Đã rút tiết kiệm"}
                                   >
                                     <input
                                       type="checkbox"
