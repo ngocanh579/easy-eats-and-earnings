@@ -137,11 +137,11 @@ function DashboardPage() {
     return buildWalletBalanceMap(wallets.data ?? [], bankTxs.data ?? []);
   }, [wallets.data, bankTxs.data]);
 
-  // Quỹ tiết kiệm = tổng các giao dịch kind="savings" (gửi vào dương, rút ra âm)
+  // Quỹ tiết kiệm = tổng giao dịch kind="savings" chưa rút (is_paid=false)
   const savingsPot = useMemo(
     () =>
       (txs.data ?? [])
-        .filter((t) => t.kind === "savings")
+        .filter((t) => t.kind === "savings" && !t.is_paid)
         .reduce((a, t) => a + Number(t.amount), 0),
     [txs.data],
   );
