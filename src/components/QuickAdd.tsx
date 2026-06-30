@@ -90,22 +90,27 @@ export function QuickAdd() {
             : "Hãy chọn nhóm tiết kiệm",
         );
       }
+      if (kind === "transfer") {
+        if (!toWalletId) throw new Error("Hãy chọn ví nhận");
+        if (toWalletId === wid) throw new Error("Ví nguồn và ví nhận phải khác nhau");
+      }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Chưa đăng nhập");
       const { error } = await supabase.from("transactions").insert({
         user_id: u.user.id,
         wallet_id: wid,
-        category_id: categoryId || null,
+        category_id: kind === "transfer" ? null : (categoryId || null),
         kind,
         amount: parsed.amount,
         note: parsed.note || null,
         occurred_at: new Date(occurredAt).toISOString(),
+        transfer_to_wallet_id: kind === "transfer" ? toWalletId : null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] }); // Wallet balance is now updated by DB trigger
+      qc.invalidateQueries({ queryKey: ["wallets"] });
       toast.success("Đã thêm giao dịch");
       setText("");
       setOpen(false);
